@@ -7,7 +7,9 @@ import path from "path";
 import { OpenRouter } from "@openrouter/sdk";
 import { getOpenRouter, DEFAULT_INSIGHTS_MODEL } from "./config";
 import { getModel, listRoutinesEnriched } from "./store";
-import type { InsightReport } from "./types";
+import { extractJson } from "./ai";
+import { buildDeviceIndex, validateActions } from "./chat";
+import type { InsightReport, RecommendedRoutine } from "./types";
 
 const LOG_DIR = path.join(process.cwd(), "logs");
 const DATA_DIR = path.join(process.cwd(), "data");
@@ -82,7 +84,9 @@ function readLogs(days: number): { text: string; lines: number } {
 async function buildDigest(): Promise<string> {
   const { rooms } = await getModel();
   const routines = await listRoutinesEnriched();
-  const lines: string[] = ["Rooms, devices and their controls:"];
+  const lines: string[] = [
+    "Rooms, devices and their controls (use the exact deviceId and control code when proposing recommendedRoutines):",
+  ];
   for (const r of rooms) {
     lines.push(`- ${r.name}:`);
     if (!r.devices.length) lines.push("    • (no devices)");
@@ -90,13 +94,13 @@ async function buildDigest(): Promise<string> {
       const controls = d.functions
         .map((f) => {
           if (f.type === "Enum" && f.range?.length)
-            return `${f.name} [${f.range.join("/")}]`;
+            return `code "${f.code}" (${f.name}) Enum[${f.range.join("/")}]`;
           if (f.type === "Integer")
-            return `${f.name} [${f.min ?? 0}-${f.max ?? 100}]`;
-          return f.name;
+            return `code "${f.code}" (${f.name}) Integer[${f.min ?? 0}-${f.max ?? 100}]`;
+          return `code "${f.code}" (${f.name}) Boolean`;
         })
-        .join(", ");
-      lines.push(`    • ${d.name}: ${controls || "(no controls)"}`);
+        .join("; ");
+      lines.push(`    • ${d.name} (deviceId: ${d.id}): ${controls || "(no controls)"}`);
     }
   }
   lines.push("", "Routines:");
@@ -184,6 +188,13 @@ Analyze it and respond with ONLY a JSON object (no markdown, no code fences) in 
       "title": "Short section title",
       "bullets": ["A short insight. Use **bold** for device names, room names, and key numbers.", "..."]
     }
+  ],
+  "recommendedRoutines": [
+    {
+      "name": "Good Night",
+      "description": "one short sentence on when/why to use it",
+      "actions": [ { "deviceId": "<id from the home setup>", "code": "<control code>", "value": <true|false | "enumValue" | number> } ]
+    }
   ]
 }
 
@@ -196,8 +207,9 @@ Create sections in exactly this order:
 6. What's Good (icon "good") — positives: reliable devices, healthy/efficient habits, well-used routines.
 7. What's Bad (icon "bad") — problems: failed/unreachable commands and causes, wasteful or risky patterns.
 8. Suggestions (icon "suggestion") — general improvements to the setup or usage.
-9. Recommended Routines (icon "routine") — ONLY IF there are concrete, useful routines worth creating that are NOT already in the saved routines list. Each bullet is a named routine with its actions, e.g. "**Good Night** — turn off MBR striplight & MBR lights, set Fan to Low". Use real device/room names. Omit this entire section if you have nothing strong and non-duplicate to recommend.
-10. Energy-Saving Tips (icon "energy").
+9. Energy-Saving Tips (icon "energy").
+
+For "recommendedRoutines": propose 0–4 genuinely useful routines that are NOT duplicates of the saved routines. Each action MUST use an exact deviceId and control code from the home setup, with a value matching the control type (Boolean true/false; Enum one of its listed values; Integer within range). Use an empty array if you have nothing strong to recommend.
 
 Reference real device and room names. Keep each bullet to one short sentence. Output JSON only.`;
 
@@ -238,7 +250,7 @@ export async function generateInsights(days: number): Promise<InsightsResult> {
   const cfg = getOpenRouter();
   if (!cfg) {
     throw new Error(
-      "No OpenRouter API key set. Add one in Settings → Advanced.",
+      "AI features are off. Add an OpenRouter key and enable them in Settings.",
     );
   }
   const model = cfg.model || DEFAULT_INSIGHTS_MODEL;
@@ -308,6 +320,42 @@ export async function generateInsights(days: number): Promise<InsightsResult> {
   }
 
   const report = logs ? parseReport(text) : undefined;
+  // Validate any recommendedRoutines against the catalog so the UI can offer a
+  // one-click "Create routine" with real, runnable actions.
+  if (report) {
+    const obj = extractJson(text);
+    const rawRec = Array.isArray(obj?.recommendedRoutines)
+      ? obj.recommendedRoutines
+      : [];
+    if (rawRec.length) {
+      const index = await buildDeviceIndex();
+      const recommended: RecommendedRoutine[] = rawRec
+        .map((r: any) => {
+          const actions = validateActions(
+            Array.isArray(r?.actions) ? r.actions : [],
+            index,
+          ).map((a) => ({
+            deviceId: a.deviceId,
+            code: a.code,
+            value: a.value,
+            deviceName: a.deviceName,
+            controlName: a.controlName,
+            valueLabel: a.valueLabel,
+          }));
+          return {
+            name:
+              typeof r?.name === "string" && r.name.trim()
+                ? r.name.trim()
+                : "Suggested routine",
+            description:
+              typeof r?.description === "string" ? r.description.trim() : undefined,
+            actions,
+          };
+        })
+        .filter((r: RecommendedRoutine) => r.actions.length > 0);
+      if (recommended.length) report.recommendedRoutines = recommended;
+    }
+  }
   const date = today();
   const out: InsightsResult = {
     key: keyFor(days, date),

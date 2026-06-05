@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { guard, isRoomAccessible } from "@/lib/auth";
 import { getModel, updateOverrides } from "@/lib/store";
-import { getHouseName, isRoomLocked } from "@/lib/config";
+import { getHouseName, isAiEnabled, isRoomLocked } from "@/lib/config";
 import { logAction } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +23,7 @@ export async function GET() {
     syncedAt,
     rooms: annotated,
     houseName: getHouseName(),
+    aiAvailable: isAiEnabled(),
   });
 }
 

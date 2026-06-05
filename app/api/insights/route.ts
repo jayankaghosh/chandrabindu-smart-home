@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { guard } from "@/lib/auth";
-import { getInsightsStatus } from "@/lib/config";
+import { getAiStatus, isAiEnabled } from "@/lib/config";
 import {
   generateInsights,
   listInsights,
@@ -12,13 +12,14 @@ import { logAction } from "@/lib/logger";
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
-// Key status + today's date + the list of previously-analyzed timeframes.
+// AI status + today's date + the list of previously-analyzed timeframes.
 export async function GET() {
   const denied = guard();
   if (denied) return denied;
-  const status = getInsightsStatus();
+  const status = getAiStatus();
   return NextResponse.json({
     hasKey: status.hasKey,
+    available: status.available,
     model: status.model,
     today: today(),
     analyses: listInsights(),
@@ -29,6 +30,12 @@ export async function GET() {
 export async function POST(req: Request) {
   const denied = guard({ admin: true });
   if (denied) return denied;
+  if (!isAiEnabled()) {
+    return NextResponse.json(
+      { error: "AI features are turned off. Enable them in Settings." },
+      { status: 400 },
+    );
+  }
   let days = 7;
   try {
     const body = await req.json();

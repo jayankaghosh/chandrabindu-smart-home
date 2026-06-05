@@ -148,7 +148,25 @@ export interface InsightSection {
   bullets: string[];
 }
 
+/** A concrete action the user can one-click turn into a routine. */
+export interface RecommendedAction {
+  deviceId: string;
+  code: string;
+  value: unknown;
+  deviceName: string;
+  controlName: string;
+  valueLabel: string;
+}
+
+export interface RecommendedRoutine {
+  name: string;
+  description?: string;
+  actions: RecommendedAction[];
+}
+
 export interface InsightReport {
   headline: string;
   sections: InsightSection[];
+  /** Actionable routine suggestions, validated against the catalog. */
+  recommendedRoutines?: RecommendedRoutine[];
 }

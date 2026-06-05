@@ -69,7 +69,8 @@
       "Bash(curl -s -m 90 -b /tmp/c.txt -o /dev/null -X POST http://localhost:3000/api/insights -H 'content-type: application/json' -d '{\"days\":7}')",
       "Bash(python3 -c \"import json,sys;[print\\(' ',a['key']\\) for a in json.load\\(sys.stdin\\)['analyses']]\")",
       "Bash(curl -s -b /tmp/c.txt -X PUT http://localhost:3000/api/house -H 'content-type: application/json' -d '{\"name\":\"My Home\"}')",
-      "Bash(echo \"tsc exit: $?\")"
+      "Bash(echo \"tsc exit: $?\")",
+      "Bash(echo \"exit $?\")"
     ]
   }
 }

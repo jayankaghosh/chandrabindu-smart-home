@@ -15,6 +15,7 @@ import type { Room } from "@/lib/types";
 import RoomCard, { type DeviceStatusState } from "./RoomCard";
 import Routines from "./Routines";
 import Insights from "./Insights";
+import Assistant from "./Assistant";
 import ThemeToggle from "./ThemeToggle";
 
 function timeAgo(ts: number): string {
@@ -54,6 +55,7 @@ export default function Dashboard({
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [view, setView] = useState<"rooms" | "routines" | "insights">("rooms");
+  const [aiAvailable, setAiAvailable] = useState(false);
   const [statusByDevice, setStatusByDevice] = useState<
     Record<string, DeviceStatusState>
   >({});
@@ -101,6 +103,7 @@ export default function Dashboard({
       if (!res.ok) throw new Error(data.error || "Failed to load");
       setRooms(data.rooms);
       setSyncedAt(data.syncedAt);
+      setAiAvailable(Boolean(data.aiAvailable));
       if (data.houseName) setHouseName(data.houseName);
       roomsRef.current = data.rooms;
       // Status is fetched per-device only while expanded (see RoomCard).
@@ -338,6 +341,9 @@ export default function Dashboard({
           </div>
         )}
       </main>
+
+      {/* Floating AI assistant (only when AI features are available) */}
+      <Assistant available={aiAvailable} />
     </div>
   );
 }

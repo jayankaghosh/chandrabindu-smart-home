@@ -20,9 +20,12 @@ import {
   ThumbsUp,
   ThumbsDown,
   Wand2,
+  Plus,
+  Check,
+  ArrowRight,
   type LucideIcon,
 } from "lucide-react";
-import type { InsightReport } from "@/lib/types";
+import type { InsightReport, RecommendedRoutine } from "@/lib/types";
 
 const DAY_OPTIONS = [1, 2, 3, 7, 14, 30, 60, 90];
 
@@ -166,12 +169,124 @@ function Report({ report }: { report: InsightReport }) {
   );
 }
 
+// Actionable routine suggestions with a one-click "Create routine" (admin).
+function RecommendedRoutines({
+  routines,
+  isAdmin,
+}: {
+  routines: RecommendedRoutine[];
+  isAdmin: boolean;
+}) {
+  const [state, setState] = useState<Record<number, "busy" | "done" | string>>({});
+
+  async function create(i: number, r: RecommendedRoutine) {
+    setState((s) => ({ ...s, [i]: "busy" }));
+    try {
+      const res = await fetch("/api/routines", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: r.name,
+          actions: r.actions.map((a) => ({
+            deviceId: a.deviceId,
+            code: a.code,
+            value: a.value,
+          })),
+        }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Failed to create");
+      setState((s) => ({ ...s, [i]: "done" }));
+    } catch (e) {
+      setState((s) => ({ ...s, [i]: (e as Error).message }));
+    }
+  }
+
+  return (
+    <div className="mt-6 border-t border-white/50 pt-5 dark:border-white/10">
+      <div className="mb-3 flex items-center gap-2.5">
+        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-fuchsia-500/15 text-fuchsia-600 dark:bg-white/10 dark:text-slate-200">
+          <Wand2 size={16} />
+        </span>
+        <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+          Recommended Routines
+        </h4>
+      </div>
+      <div className="space-y-3">
+        {routines.map((r, i) => (
+          <div
+            key={i}
+            className="rounded-2xl border border-white/60 bg-white/45 p-4 dark:border-white/10 dark:bg-white/[0.05]"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-semibold text-slate-900 dark:text-slate-100">
+                  {r.name}
+                </p>
+                {r.description && (
+                  <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
+                    {r.description}
+                  </p>
+                )}
+              </div>
+              {isAdmin &&
+                (state[i] === "done" ? (
+                  <span className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-emerald-600 dark:text-slate-200">
+                    <Check size={15} /> Created
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => create(i, r)}
+                    disabled={state[i] === "busy"}
+                    className="btn-primary shrink-0"
+                  >
+                    {state[i] === "busy" ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <Plus size={14} />
+                    )}
+                    Create routine
+                  </button>
+                ))}
+            </div>
+            <ul className="mt-2.5 space-y-1">
+              {r.actions.map((a, j) => (
+                <li
+                  key={j}
+                  className="flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-300"
+                >
+                  <span className="font-medium text-slate-700 dark:text-slate-200">
+                    {a.deviceName}
+                  </span>
+                  <span className="text-slate-400 dark:text-slate-500">
+                    {a.controlName}
+                  </span>
+                  <ArrowRight size={11} className="shrink-0 text-slate-300 dark:text-slate-600" />
+                  <span className="font-semibold text-slate-900 dark:text-slate-100">
+                    {a.valueLabel}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {typeof state[i] === "string" &&
+              state[i] !== "done" &&
+              state[i] !== "busy" && (
+                <p className="mt-2 text-sm text-red-500">{state[i]}</p>
+              )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function Insights({ isAdmin }: { isAdmin: boolean }) {
   const [days, setDays] = useState(7);
   const [analyses, setAnalyses] = useState<InsightMeta[]>([]);
   const [today, setToday] = useState("");
   const [current, setCurrent] = useState<InsightsResult | null>(null);
   const [hasKey, setHasKey] = useState<boolean | null>(null);
+  const [available, setAvailable] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(false); // generating
   const [viewing, setViewing] = useState(false); // fetching a cached one
   const [error, setError] = useState<string | null>(null);
@@ -181,6 +296,7 @@ export default function Insights({ isAdmin }: { isAdmin: boolean }) {
     if (!res.ok) return null;
     const data = await res.json();
     setHasKey(data.hasKey);
+    setAvailable(data.available);
     setToday(data.today);
     setAnalyses(data.analyses ?? []);
     return data as { today: string; analyses: InsightMeta[] };
@@ -246,18 +362,24 @@ export default function Insights({ isAdmin }: { isAdmin: boolean }) {
 
   return (
     <div className="mx-auto max-w-3xl animate-fade-in">
-      {hasKey === false ? (
+      {available === false ? (
         <div className="card p-8 text-center">
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-500/15 dark:bg-white/10 text-brand-600 dark:text-slate-200">
             <KeyRound size={26} />
           </div>
           <p className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-            {isAdmin ? "Add an OpenRouter API key" : "No insights yet"}
+            {!isAdmin
+              ? "No insights yet"
+              : hasKey
+                ? "AI features are turned off"
+                : "Add an OpenRouter API key"}
           </p>
           <p className="mx-auto mt-1.5 max-w-sm text-sm text-slate-500 dark:text-slate-400">
-            {isAdmin
-              ? "Insights uses an LLM (via OpenRouter) to analyze your action logs. Add your key in settings to get started."
-              : "An admin hasn't set up insights yet. Once they analyze your activity, the reports will show up here."}
+            {!isAdmin
+              ? "AI features are off. Ask an admin to enable them, then insights will show up here."
+              : hasKey
+                ? "Insights, Assistant and routine suggestions are disabled. Turn them back on in Settings → AI features."
+                : "Insights uses an LLM (via OpenRouter) to analyze your action logs. Add your key in Settings → AI features to get started."}
           </p>
           {isAdmin && (
             <Link href="/settings" className="btn-primary mx-auto mt-5">
@@ -371,6 +493,13 @@ export default function Insights({ isAdmin }: { isAdmin: boolean }) {
                 ) : (
                   <div>{renderMarkdown(current.text)}</div>
                 )}
+                {current.report?.recommendedRoutines &&
+                  current.report.recommendedRoutines.length > 0 && (
+                    <RecommendedRoutines
+                      routines={current.report.recommendedRoutines}
+                      isAdmin={isAdmin}
+                    />
+                  )}
               </>
             ) : (
               <div className="py-16 text-center">

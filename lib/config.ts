@@ -45,7 +45,7 @@ interface AppConfig {
   /** Per-room password locks, keyed by roomId. */
   roomLocks?: Record<string, RoomLock>;
   tuya?: TuyaCreds;
-  openrouter?: { apiKey: string; model: string };
+  openrouter?: { apiKey: string; model: string; enabled?: boolean };
 }
 
 /** Public (no secret) view of a user, for the settings UI. */
@@ -317,20 +317,46 @@ export function setTuyaCreds(creds: TuyaCreds): void {
   write({ ...config, tuya: creds });
 }
 
-/** OpenRouter API key + model for Insights (null if no key set). */
+/**
+ * OpenRouter API key + model, used by all AI features. Returns null when there
+ * is no key OR the admin has disabled AI features — so every AI consumer is
+ * naturally turned off by the same check.
+ */
 export function getOpenRouter(): { apiKey: string; model: string } | null {
   const o = read()?.openrouter;
-  if (!o?.apiKey) return null;
+  if (!o?.apiKey || o.enabled === false) return null;
   return { apiKey: o.apiKey, model: o.model || DEFAULT_INSIGHTS_MODEL };
 }
 
-/** Non-secret view for the settings UI. */
-export function getInsightsStatus(): { hasKey: boolean; model: string } {
+/** True if AI features are usable (key present AND enabled). */
+export function isAiEnabled(): boolean {
   const o = read()?.openrouter;
-  return { hasKey: Boolean(o?.apiKey), model: o?.model || DEFAULT_INSIGHTS_MODEL };
+  return Boolean(o?.apiKey) && o?.enabled !== false;
 }
 
-export function setOpenRouter(opts: { apiKey?: string; model?: string }): void {
+/** Non-secret view for the settings UI. */
+export function getAiStatus(): {
+  hasKey: boolean;
+  enabled: boolean;
+  available: boolean;
+  model: string;
+} {
+  const o = read()?.openrouter;
+  const hasKey = Boolean(o?.apiKey);
+  const enabled = o?.enabled !== false; // default on
+  return {
+    hasKey,
+    enabled,
+    available: hasKey && enabled,
+    model: o?.model || DEFAULT_INSIGHTS_MODEL,
+  };
+}
+
+export function setOpenRouter(opts: {
+  apiKey?: string;
+  model?: string;
+  enabled?: boolean;
+}): void {
   const config = read();
   if (!config) throw new Error("App is not onboarded yet");
   const prev = config.openrouter ?? { apiKey: "", model: DEFAULT_INSIGHTS_MODEL };
@@ -340,6 +366,7 @@ export function setOpenRouter(opts: { apiKey?: string; model?: string }): void {
       // empty/undefined apiKey keeps the existing one
       apiKey: opts.apiKey ? opts.apiKey.trim() : prev.apiKey,
       model: (opts.model && opts.model.trim()) || prev.model || DEFAULT_INSIGHTS_MODEL,
+      enabled: opts.enabled !== undefined ? opts.enabled : prev.enabled,
     },
   });
 }

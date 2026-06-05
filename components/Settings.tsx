@@ -32,12 +32,18 @@ export default function Settings({ isAdmin }: { isAdmin: boolean }) {
   const [houseMsg, setHouseMsg] = useState<string | null>(null);
   const [savingHouse, setSavingHouse] = useState(false);
 
-  // Insights / OpenRouter
-  const [insights, setInsights] = useState<{ hasKey: boolean; model: string } | null>(null);
+  // AI features (OpenRouter)
+  const [ai, setAi] = useState<{
+    hasKey: boolean;
+    enabled: boolean;
+    available: boolean;
+    model: string;
+  } | null>(null);
   const [orKey, setOrKey] = useState("");
   const [orModel, setOrModel] = useState("");
   const [savingOr, setSavingOr] = useState(false);
   const [orMsg, setOrMsg] = useState<string | null>(null);
+  const [togglingAi, setTogglingAi] = useState(false);
 
   const [creds, setCreds] = useState<{
     hasCreds: boolean;
@@ -59,13 +65,32 @@ export default function Settings({ isAdmin }: { isAdmin: boolean }) {
     if (data.baseUrl) setBaseUrl(data.baseUrl);
   }, []);
 
-  const loadInsights = useCallback(async () => {
+  const loadAi = useCallback(async () => {
     const res = await fetch("/api/insights/config");
     if (!res.ok) return;
     const data = await res.json();
-    setInsights(data);
+    setAi(data);
     if (data.model) setOrModel(data.model);
   }, []);
+
+  async function toggleAi(next: boolean) {
+    setTogglingAi(true);
+    setOrMsg(null);
+    try {
+      const res = await fetch("/api/insights/config", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: next }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed");
+      setAi(data);
+    } catch (e2) {
+      setOrMsg((e2 as Error).message);
+    } finally {
+      setTogglingAi(false);
+    }
+  }
 
   const loadHouse = useCallback(async () => {
     const res = await fetch("/api/house");
@@ -75,9 +100,9 @@ export default function Settings({ isAdmin }: { isAdmin: boolean }) {
   useEffect(() => {
     if (!isAdmin) return; // standard users only see the password section
     loadCreds();
-    loadInsights();
+    loadAi();
     loadHouse();
-  }, [isAdmin, loadCreds, loadInsights, loadHouse]);
+  }, [isAdmin, loadCreds, loadAi, loadHouse]);
 
   async function saveHouse(e: React.FormEvent) {
     e.preventDefault();
@@ -113,7 +138,7 @@ export default function Settings({ isAdmin }: { isAdmin: boolean }) {
       if (!res.ok) throw new Error(data.error || "Failed to save");
       setOrMsg("Saved.");
       setOrKey("");
-      loadInsights();
+      loadAi();
     } catch (e2) {
       setOrMsg((e2 as Error).message);
     } finally {
@@ -315,27 +340,56 @@ export default function Settings({ isAdmin }: { isAdmin: boolean }) {
           </form>
         </Section>
 
-        {/* Insights / OpenRouter */}
-        <Section icon={<Sparkles size={16} />} title="Insights (OpenRouter)">
+        {/* AI features */}
+        <Section icon={<Sparkles size={16} />} title="AI features">
           <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
-            Used by the Insights tab to analyze your action logs with an LLM.
-            {insights?.hasKey ? (
-              <>
-                {" "}
-                Key is set · model{" "}
-                <span className="font-medium text-slate-700 dark:text-slate-200">{insights.model}</span>
-              </>
-            ) : (
-              " No key set yet."
-            )}
+            Powers Insights, the Assistant chat, and routine recommendations via
+            an LLM (OpenRouter). They all turn off together when disabled or when
+            no key is set.
           </p>
+
+          {/* Enable / disable toggle */}
+          <div className="mb-4 flex items-center justify-between rounded-xl border border-white/60 bg-white/40 px-3.5 py-3 dark:border-white/10 dark:bg-white/[0.05]">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-slate-800 dark:text-slate-200">
+                AI features
+              </p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {!ai?.hasKey
+                  ? "Add an API key below to enable."
+                  : ai.available
+                    ? `On · model ${ai.model}`
+                    : "Off"}
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={Boolean(ai?.available)}
+              disabled={!ai?.hasKey || togglingAi}
+              onClick={() => toggleAi(!ai?.enabled)}
+              className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
+                ai?.available
+                  ? "bg-brand-500"
+                  : "bg-slate-300 dark:bg-slate-600"
+              }`}
+              title={ai?.hasKey ? "Toggle AI features" : "Add a key first"}
+            >
+              <span
+                className={`absolute left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                  ai?.available ? "translate-x-5" : "translate-x-0"
+                }`}
+              />
+            </button>
+          </div>
+
           <form onSubmit={saveInsights} className="space-y-3">
             <input
               value={orKey}
               onChange={(e) => setOrKey(e.target.value)}
               className="field"
               placeholder={
-                insights?.hasKey
+                ai?.hasKey
                   ? "OpenRouter API key (re-enter to change)"
                   : "OpenRouter API key (sk-or-…)"
               }

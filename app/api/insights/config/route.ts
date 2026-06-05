@@ -1,17 +1,18 @@
 import { NextResponse } from "next/server";
 import { guard } from "@/lib/auth";
-import { getInsightsStatus, setOpenRouter } from "@/lib/config";
+import { getAiStatus, setOpenRouter } from "@/lib/config";
 import { logAction } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
+// AI features config: key/model presence + enabled flag.
 export async function GET() {
   const denied = guard({ admin: true });
   if (denied) return denied;
-  return NextResponse.json(getInsightsStatus());
+  return NextResponse.json(getAiStatus());
 }
 
-// Update the OpenRouter API key and/or model. Empty apiKey keeps the existing.
+// Update the OpenRouter API key, model and/or the enabled toggle.
 export async function PUT(req: Request) {
   const denied = guard({ admin: true });
   if (denied) return denied;
@@ -23,13 +24,23 @@ export async function PUT(req: Request) {
   }
   const apiKey = typeof body.apiKey === "string" ? body.apiKey.trim() : "";
   const model = typeof body.model === "string" ? body.model.trim() : "";
-  if (!apiKey && !model) {
+  const enabled = typeof body.enabled === "boolean" ? body.enabled : undefined;
+
+  if (!apiKey && !model && enabled === undefined) {
     return NextResponse.json(
-      { error: "Provide an API key and/or model" },
+      { error: "Nothing to update" },
       { status: 400 },
     );
   }
-  setOpenRouter({ apiKey: apiKey || undefined, model: model || undefined });
-  logAction("INSIGHTS_CONFIG", { model: model || undefined, keyChanged: Boolean(apiKey) });
-  return NextResponse.json(getInsightsStatus());
+  setOpenRouter({
+    apiKey: apiKey || undefined,
+    model: model || undefined,
+    enabled,
+  });
+  logAction("AI_CONFIG", {
+    model: model || undefined,
+    keyChanged: Boolean(apiKey),
+    enabled,
+  });
+  return NextResponse.json(getAiStatus());
 }
