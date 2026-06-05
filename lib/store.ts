@@ -23,6 +23,7 @@ const EMPTY_OVERRIDES: Overrides = {
   deviceRoom: {},
   deviceName: {},
   roomName: {},
+  controlName: {},
   extraRooms: [],
 };
 
@@ -193,7 +194,7 @@ export async function getModel(): Promise<{
       roomId: byId.has(roomId) ? roomId : UNASSIGNED_ID,
       functions: d.functions.map((f) => ({
         code: f.code,
-        name: f.name,
+        name: overrides.controlName[d.id]?.[f.code] ?? f.name,
         type: f.type,
         range: f.range,
         min: f.min,
@@ -294,6 +295,8 @@ export async function listRoutinesEnriched(): Promise<EnrichedRoutine[]> {
       const fn = d?.functions.find((f) => f.code === a.code);
       const deviceName =
         overrides.deviceName[a.deviceId] ?? d?.cloudName ?? "(removed device)";
+      const controlName =
+        overrides.controlName[a.deviceId]?.[a.code] ?? fn?.name ?? a.code;
       let valueLabel: string;
       if (fn?.type === "Boolean") {
         valueLabel = a.value === true ? "On" : "Off";
@@ -309,7 +312,7 @@ export async function listRoutinesEnriched(): Promise<EnrichedRoutine[]> {
         delayMs: a.delayMs ?? 0,
         roomName: roomNameFor(a.deviceId),
         deviceName,
-        controlName: fn?.name ?? a.code,
+        controlName,
         type: fn?.type,
         valueLabel,
       };

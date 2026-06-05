@@ -62,6 +62,8 @@ export interface Overrides {
   deviceName: Record<string, string>;
   /** roomId -> custom room name */
   roomName: Record<string, string>;
+  /** deviceId -> { control code -> custom label } */
+  controlName: Record<string, Record<string, string>>;
   /** Locally-created rooms not present in the cloud. */
   extraRooms: CatalogRoom[];
 }

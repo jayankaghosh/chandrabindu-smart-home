@@ -13,7 +13,7 @@ export async function PATCH(
 ) {
   const denied = guard({ admin: true });
   if (denied) return denied;
-  let body: { roomId?: unknown; name?: unknown } = {};
+  let body: { roomId?: unknown; name?: unknown; controls?: unknown } = {};
   try {
     body = await req.json();
   } catch {
@@ -29,12 +29,26 @@ export async function PATCH(
       if (trimmed) o.deviceName[params.id] = trimmed;
       else delete o.deviceName[params.id];
     }
+    // Custom control labels: { code: label }. Empty/blank label clears it.
+    if (body.controls && typeof body.controls === "object") {
+      const labels = (o.controlName[params.id] ??= {});
+      for (const [code, raw] of Object.entries(body.controls as Record<string, unknown>)) {
+        const label = typeof raw === "string" ? raw.trim() : "";
+        if (label) labels[code] = label;
+        else delete labels[code];
+      }
+      if (Object.keys(labels).length === 0) delete o.controlName[params.id];
+    }
   });
 
   logAction("DEVICE_EDIT", {
     id: params.id,
     name: typeof body.name === "string" ? body.name : undefined,
     roomId: typeof body.roomId === "string" ? body.roomId : undefined,
+    controls:
+      body.controls && typeof body.controls === "object"
+        ? Object.keys(body.controls as object).length
+        : undefined,
   });
   return NextResponse.json({ ok: true });
 }

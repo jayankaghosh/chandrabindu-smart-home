@@ -88,6 +88,70 @@ export default function RoomCard({
   }
 
   return (
+    <RoomCardInner
+      room={room}
+      open={open}
+      toggle={toggle}
+      onCount={onCount}
+      isAdmin={isAdmin}
+      statusByDevice={statusByDevice}
+      rooms={rooms}
+      onCommand={onCommand}
+      onPoll={onPoll}
+      onChanged={onChanged}
+      index={index}
+    />
+  );
+}
+
+function RoomCardInner({
+  room,
+  open,
+  toggle,
+  onCount,
+  isAdmin,
+  statusByDevice,
+  rooms,
+  onCommand,
+  onPoll,
+  onChanged,
+  index,
+}: {
+  room: Room;
+  open: boolean;
+  toggle: () => void;
+  onCount: number;
+  isAdmin: boolean;
+  statusByDevice: Record<string, DeviceStatusState>;
+  rooms: { id: string; name: string }[];
+  onCommand: (deviceId: string, code: string, value: unknown) => void;
+  onPoll: (deviceId: string) => void;
+  onChanged: () => void;
+  index: number;
+}) {
+  const [renaming, setRenaming] = useState(false);
+  const [roomDraft, setRoomDraft] = useState(room.name);
+  const [savingRoom, setSavingRoom] = useState(false);
+
+  async function saveRoomName(e: React.FormEvent) {
+    e.preventDefault();
+    const name = roomDraft.trim();
+    if (!name) return;
+    setSavingRoom(true);
+    try {
+      await fetch(`/api/rooms/${room.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      setRenaming(false);
+      onChanged();
+    } finally {
+      setSavingRoom(false);
+    }
+  }
+
+  return (
     <section
       style={{ animationDelay: `${Math.min(index, 12) * 55}ms` }}
       className={`card animate-fade-in flex flex-col self-start overflow-hidden ${
@@ -95,32 +159,74 @@ export default function RoomCard({
       }`}
     >
       <div className="flex w-full shrink-0 items-center gap-2 px-5 py-4">
-        <button
-          onClick={toggle}
-          className="flex min-w-0 flex-1 items-center gap-3 text-left"
-        >
-          <h2 className="truncate text-[17px] font-semibold tracking-tight text-slate-900 dark:text-slate-100">
-            {room.name}
-          </h2>
-          <span
-            className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${
-              onCount > 0
-                ? "bg-brand-500/15 dark:bg-white/10 text-brand-700 dark:text-white"
-                : "bg-white/40 dark:bg-white/[0.05] text-slate-600 dark:text-slate-300"
-            }`}
+        {renaming ? (
+          <form onSubmit={saveRoomName} className="flex min-w-0 flex-1 items-center gap-2">
+            <input
+              autoFocus
+              value={roomDraft}
+              onChange={(e) => setRoomDraft(e.target.value)}
+              placeholder="Room name"
+              className="field"
+            />
+            <button
+              type="submit"
+              disabled={savingRoom || !roomDraft.trim()}
+              className="icon-btn h-8 w-8 shrink-0"
+              title="Save"
+            >
+              {savingRoom ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+            </button>
+            <button
+              type="button"
+              onClick={() => setRenaming(false)}
+              className="icon-btn h-8 w-8 shrink-0"
+              title="Cancel"
+            >
+              <X size={14} />
+            </button>
+          </form>
+        ) : (
+          <button
+            onClick={toggle}
+            className="flex min-w-0 flex-1 items-center gap-3 text-left"
           >
-            {onCount > 0
-              ? `${onCount} on`
-              : `${room.devices.length} device${room.devices.length === 1 ? "" : "s"}`}
-          </span>
-        </button>
+            <h2 className="truncate text-[17px] font-semibold tracking-tight text-slate-900 dark:text-slate-100">
+              {room.name}
+            </h2>
+            <span
+              className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                onCount > 0
+                  ? "bg-brand-500/15 dark:bg-white/10 text-brand-700 dark:text-white"
+                  : "bg-white/40 dark:bg-white/[0.05] text-slate-600 dark:text-slate-300"
+              }`}
+            >
+              {onCount > 0
+                ? `${onCount} on`
+                : `${room.devices.length} device${room.devices.length === 1 ? "" : "s"}`}
+            </span>
+          </button>
+        )}
+        {isAdmin && !renaming && (
+          <button
+            onClick={() => {
+              setRoomDraft(room.name);
+              setRenaming(true);
+            }}
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-white/50 hover:text-slate-700 dark:text-slate-500"
+            title="Rename room"
+          >
+            <Pencil size={13} />
+          </button>
+        )}
         {isAdmin && <RoomLockButton room={room} onChanged={onChanged} />}
-        <button onClick={toggle} aria-label="Expand room" className="shrink-0">
-          <ChevronDown
-            size={20}
-            className={`text-slate-500 dark:text-slate-400 transition-transform duration-300 ${open ? "rotate-180" : ""}`}
-          />
-        </button>
+        {!renaming && (
+          <button onClick={toggle} aria-label="Expand room" className="shrink-0">
+            <ChevronDown
+              size={20}
+              className={`text-slate-500 dark:text-slate-400 transition-transform duration-300 ${open ? "rotate-180" : ""}`}
+            />
+          </button>
+        )}
       </div>
 
       {open && (
@@ -144,6 +250,12 @@ export default function RoomCard({
 }
 
 const CONTROLLABLE = ["Boolean", "Enum", "Integer"];
+
+// The device edit panel sits on a light frosted card in BOTH themes, so its
+// inputs always use dark text (the default `.field` flips to light text in dark
+// mode, which is unreadable here).
+const PANEL_FIELD =
+  "w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-brand-500";
 
 // Locked room: same card with its controls shown behind a blurred overlay.
 // The big lock button reveals the password field to unlock for this session.
@@ -462,6 +574,7 @@ function DeviceGroup({
   const [editing, setEditing] = useState(false);
   const [draftName, setDraftName] = useState(device.name);
   const [draftRoom, setDraftRoom] = useState(device.roomId);
+  const [draftControls, setDraftControls] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
 
   const reachable = state?.reachable ?? null;
@@ -474,13 +587,26 @@ function DeviceGroup({
     (f) => f.type === "Boolean" && values[f.code] === true,
   ).length;
 
+  function startEditing() {
+    setDraftName(device.name);
+    setDraftRoom(device.roomId);
+    setDraftControls(
+      Object.fromEntries(controllable.map((f) => [f.code, f.name])),
+    );
+    setEditing((v) => !v);
+  }
+
   async function save() {
     setSaving(true);
     try {
       await fetch(`/api/devices/${device.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: draftName, roomId: draftRoom }),
+        body: JSON.stringify({
+          name: draftName,
+          roomId: draftRoom,
+          controls: draftControls,
+        }),
       });
       setEditing(false);
       onChanged();
@@ -521,13 +647,9 @@ function DeviceGroup({
         </button>
         {isAdmin && (
           <button
-            onClick={() => {
-              setDraftName(device.name);
-              setDraftRoom(device.roomId);
-              setEditing((v) => !v);
-            }}
+            onClick={startEditing}
             className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 transition-colors hover:bg-white/50 hover:text-slate-800"
-            title="Rename / move"
+            title="Rename / move / relabel controls"
           >
             {editing ? <X size={13} /> : <Pencil size={12} />}
           </button>
@@ -544,29 +666,51 @@ function DeviceGroup({
                   value={draftName}
                   onChange={(e) => setDraftName(e.target.value)}
                   placeholder="Device name"
-                  className="field"
+                  className={PANEL_FIELD}
                 />
-                <div className="flex items-center gap-2">
-                  <select
-                    value={draftRoom}
-                    onChange={(e) => setDraftRoom(e.target.value)}
-                    className="field flex-1"
-                  >
-                    {rooms.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.name}
-                      </option>
+                <select
+                  value={draftRoom}
+                  onChange={(e) => setDraftRoom(e.target.value)}
+                  className={PANEL_FIELD}
+                >
+                  {rooms.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name}
+                    </option>
+                  ))}
+                </select>
+
+                {controllable.length > 0 && (
+                  <div className="space-y-1.5 rounded-xl border border-white/60 bg-white/40 p-2 dark:border-white/10 dark:bg-white/[0.05]">
+                    <p className="px-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                      Control labels
+                    </p>
+                    {controllable.map((f) => (
+                      <input
+                        key={f.code}
+                        value={draftControls[f.code] ?? ""}
+                        onChange={(e) =>
+                          setDraftControls((c) => ({ ...c, [f.code]: e.target.value }))
+                        }
+                        placeholder={f.code}
+                        className={PANEL_FIELD}
+                      />
                     ))}
-                  </select>
-                  <button onClick={save} disabled={saving} className="btn-primary">
-                    {saving ? (
-                      <Loader2 size={13} className="animate-spin" />
-                    ) : (
-                      <Check size={13} />
-                    )}
-                    Save
-                  </button>
-                </div>
+                  </div>
+                )}
+
+                <button
+                  onClick={save}
+                  disabled={saving}
+                  className="btn-primary w-full justify-center"
+                >
+                  {saving ? (
+                    <Loader2 size={13} className="animate-spin" />
+                  ) : (
+                    <Check size={13} />
+                  )}
+                  Save
+                </button>
               </div>
             )}
 
