@@ -1,0 +1,183 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --range-fill: #6366f1;
+  --range-track: rgba(15, 23, 42, 0.12);
+}
+.dark {
+  color-scheme: dark;
+  --range-fill: #e5e7eb;
+  --range-track: rgba(255, 255, 255, 0.18);
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  background-color: #dfe3ec; /* fallback if image is missing */
+  color: #0f172a;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, "Helvetica Neue",
+    Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Background photo — blurred so the whole app reads like frosted glass. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: -40px; /* overscan so the blur has no transparent edges */
+  z-index: -2;
+  background-image:
+    linear-gradient(135deg, rgba(99, 102, 241, 0.25), rgba(56, 189, 248, 0.2)),
+    url("/background.jpg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  filter: blur(22px) saturate(1.15);
+  transform: scale(1.12);
+}
+
+/* Translucent frost veil for legibility over any image. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.42),
+    rgba(255, 255, 255, 0.3)
+  );
+}
+
+.dark body {
+  color: #e7e7ea;
+}
+.dark body::after {
+  background: linear-gradient(
+    180deg,
+    rgba(8, 10, 16, 0.62),
+    rgba(8, 10, 16, 0.74)
+  );
+}
+
+@layer components {
+  /* Liquid-glass surface */
+  .card {
+    @apply rounded-3xl border border-white/60 bg-white/45 shadow-[0_1px_0_0_rgba(255,255,255,0.6)_inset,0_20px_44px_-24px_rgba(16,24,40,0.4)] backdrop-blur-2xl backdrop-saturate-150 dark:border-white/10 dark:bg-white/[0.06] dark:shadow-[0_20px_44px_-24px_rgba(0,0,0,0.7)];
+  }
+  .icon-btn {
+    @apply flex h-10 w-10 items-center justify-center rounded-xl border border-white/60 bg-white/45 text-slate-700 shadow-sm backdrop-blur-xl transition-all hover:bg-white/70 hover:text-slate-900 active:scale-95 dark:border-white/10 dark:bg-white/[0.06] dark:text-slate-300 dark:hover:bg-white/[0.12] dark:hover:text-white;
+  }
+  .field {
+    @apply w-full rounded-xl border border-white/60 bg-white/55 px-3 py-2.5 text-sm text-slate-900 outline-none backdrop-blur-md transition-colors placeholder:text-slate-400 focus:border-brand-500 focus:bg-white/80 dark:border-white/10 dark:bg-white/[0.06] dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:bg-white/[0.1];
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand-500 to-brand-400 px-4 py-2.5 text-sm font-medium text-white shadow-[0_10px_26px_-10px_rgba(99,102,241,0.85)] transition-all hover:brightness-110 active:scale-95 disabled:opacity-50 dark:from-white dark:to-white dark:text-slate-900 dark:shadow-none dark:hover:brightness-100 dark:hover:bg-slate-200;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-white/60 bg-white/45 px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm backdrop-blur-xl transition-all hover:bg-white/70 active:scale-95 disabled:opacity-50 dark:border-white/10 dark:bg-white/[0.06] dark:text-slate-200 dark:hover:bg-white/[0.12];
+  }
+  /* Frosted tile (off state) */
+  .tile-off {
+    @apply border border-white/55 bg-white/40 text-slate-900 shadow-[0_1px_0_0_rgba(255,255,255,0.6)_inset] backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.05] dark:text-slate-100 dark:shadow-none;
+  }
+}
+
+.dark input[type="range"] {
+  background: rgba(255, 255, 255, 0.18);
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  background-clip: content-box;
+}
+
+/* Premium range slider */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 8px;
+  border-radius: 9999px;
+  background: rgba(15, 23, 42, 0.16);
+  outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 9999px;
+  background: #fff;
+  cursor: pointer;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 2px 8px rgba(16, 24, 40, 0.3);
+  transition: transform 0.15s ease;
+}
+input[type="range"]::-webkit-slider-thumb:active {
+  transform: scale(1.12);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 9999px;
+  background: #fff;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(16, 24, 40, 0.3);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(15, 23, 42, 0.18);
+  border-radius: 9999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(15, 23, 42, 0.3);
+  background-clip: content-box;
+}
+
+/* Animations */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.animate-fade-in {
+  animation: fade-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.animate-scale-in {
+  animation: scale-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Smoothly animate collapse/expand to auto height */
+.collapse-grid {
+  display: grid;
+  transition: grid-template-rows 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+}
