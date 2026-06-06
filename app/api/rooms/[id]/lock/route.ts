@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   UNLOCK_COOKIE,
+  authCookieOptions,
   guard,
   readUnlocks,
   serializeUnlocks,
@@ -41,13 +42,11 @@ export async function PUT(
   if (stamp) unlocks[params.id] = stamp;
 
   const res = NextResponse.json({ ok: true });
-  res.cookies.set(UNLOCK_COOKIE, serializeUnlocks(unlocks), {
-    httpOnly: true,
-    sameSite: "strict",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: SESSION_MAX_AGE,
-  });
+  res.cookies.set(
+    UNLOCK_COOKIE,
+    serializeUnlocks(unlocks),
+    authCookieOptions(req, SESSION_MAX_AGE),
+  );
   return res;
 }
 

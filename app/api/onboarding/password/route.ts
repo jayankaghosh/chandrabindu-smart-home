@@ -5,7 +5,12 @@ import {
   setHouseName,
   SUPERADMIN_USERNAME,
 } from "@/lib/config";
-import { COOKIE_NAME, createSessionToken, SESSION_MAX_AGE } from "@/lib/auth";
+import {
+  COOKIE_NAME,
+  createSessionToken,
+  authCookieOptions,
+  SESSION_MAX_AGE,
+} from "@/lib/auth";
 
 // Step 1 of onboarding: set the admin password. Only allowed once (until the
 // app is reset by deleting data/config.json). Logs the user in on success.
@@ -38,13 +43,7 @@ export async function POST(req: Request) {
   res.cookies.set(
     COOKIE_NAME,
     createSessionToken({ username: SUPERADMIN_USERNAME, role: "admin" }),
-    {
-      httpOnly: true,
-      sameSite: "strict",
-      secure: process.env.NODE_ENV === "production",
-      path: "/",
-      maxAge: SESSION_MAX_AGE,
-    },
+    authCookieOptions(req, SESSION_MAX_AGE),
   );
   return res;
 }

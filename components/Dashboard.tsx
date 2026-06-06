@@ -56,6 +56,10 @@ export default function Dashboard({
   const [syncing, setSyncing] = useState(false);
   const [view, setView] = useState<"rooms" | "routines" | "insights">("rooms");
   const [aiAvailable, setAiAvailable] = useState(false);
+  // Computed on the client only — depends on the local clock, so rendering it
+  // during SSR causes a hydration mismatch (e.g. "Good evening" vs "Good morning").
+  const [greet, setGreet] = useState("");
+  useEffect(() => setGreet(greeting()), []);
   const [statusByDevice, setStatusByDevice] = useState<
     Record<string, DeviceStatusState>
   >({});
@@ -202,7 +206,7 @@ export default function Dashboard({
             />
             <div className="min-w-0">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                {greeting()}
+                {greet || " "}
               </p>
               <h1 className="-mt-0.5 truncate text-xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">
                 {houseName}

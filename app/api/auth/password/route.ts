@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import {
   COOKIE_NAME,
   createSessionToken,
+  authCookieOptions,
   getSession,
   guard,
   SESSION_MAX_AGE,
@@ -75,12 +76,10 @@ export async function POST(req: Request) {
   // (their credential stamp is now stale). Re-issue a fresh cookie so the device
   // that made the change stays signed in; other devices are logged out.
   const res = NextResponse.json({ ok: true });
-  res.cookies.set(COOKIE_NAME, createSessionToken(session), {
-    httpOnly: true,
-    sameSite: "strict",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: SESSION_MAX_AGE,
-  });
+  res.cookies.set(
+    COOKIE_NAME,
+    createSessionToken(session),
+    authCookieOptions(req, SESSION_MAX_AGE),
+  );
   return res;
 }

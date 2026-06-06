@@ -26,6 +26,32 @@ export interface Session {
   issuedAt: number;
 }
 
+/**
+ * True if the request arrived over HTTPS (directly or behind a proxy). Used to
+ * decide the cookie `secure` flag — basing it on NODE_ENV breaks plain-HTTP LAN
+ * deployments (the browser drops a `secure` cookie sent over http://).
+ */
+export function isSecureRequest(req: Request): boolean {
+  const proto = req.headers.get("x-forwarded-proto");
+  if (proto) return proto.split(",")[0].trim() === "https";
+  try {
+    return new URL(req.url).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+/** Cookie options for the auth/unlock cookies; `secure` only over HTTPS. */
+export function authCookieOptions(req: Request, maxAge: number) {
+  return {
+    httpOnly: true,
+    sameSite: "strict" as const,
+    secure: isSecureRequest(req),
+    path: "/",
+    maxAge,
+  };
+}
+
 function sign(value: string): string {
   return crypto
     .createHmac("sha256", getSessionSecret())
