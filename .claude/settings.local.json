@@ -70,7 +70,8 @@
       "Bash(python3 -c \"import json,sys;[print\\(' ',a['key']\\) for a in json.load\\(sys.stdin\\)['analyses']]\")",
       "Bash(curl -s -b /tmp/c.txt -X PUT http://localhost:3000/api/house -H 'content-type: application/json' -d '{\"name\":\"My Home\"}')",
       "Bash(echo \"tsc exit: $?\")",
-      "Bash(echo \"exit $?\")"
+      "Bash(echo \"exit $?\")",
+      "Bash(grep -n \"wantsLive\\\\|includeLive\\\\|getStatusLocal\\\\|curNote\\\\|=\\\\${cur}\\\\|live\\\\b\" lib/chat.ts)"
     ]
   }
 }

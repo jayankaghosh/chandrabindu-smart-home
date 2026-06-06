@@ -246,11 +246,8 @@ export async function runAssistant(
   if (!cfg) {
     throw new Error("AI features are off. Enable them in Settings.");
   }
-  // Include live status only when the latest user message seems to ask about state.
-  const lastUser = [...history].reverse().find((m) => m.role === "user")?.content ?? "";
-  const wantsLive = /\b(on|off|status|currently|running|state|how many)\b/i.test(lastUser);
-
-  const { text: context, index, routineIndex } = await buildContext(wantsLive);
+  // Always include current device/switch status so the assistant knows live state.
+  const { text: context, index, routineIndex } = await buildContext(true);
   const memory = readMemory(username);
   const messages: ChatMessage[] = [
     { role: "system", content: SYSTEM_PROMPT },
