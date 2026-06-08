@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Shield } from "lucide-react";
 import type { DeviceFunction } from "@/lib/types";
 import {
   controlKind,
@@ -17,14 +16,14 @@ function Sheen() {
   );
 }
 
-/** Small badge marking a protected control. */
+/** Badge marking a protected control. */
 function ProtectedBadge() {
   return (
     <span
       title="Protected — admin only"
-      className="absolute bottom-2 right-2 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-white/85 text-brand-600 shadow ring-1 ring-black/5"
+      className="absolute bottom-2 right-2 z-10 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-600 shadow ring-1 ring-black/5"
     >
-      <Shield size={11} />
+      Protected
     </span>
   );
 }
