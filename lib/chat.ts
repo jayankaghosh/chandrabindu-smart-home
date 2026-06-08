@@ -94,11 +94,12 @@ async function buildContext(includeLive: boolean): Promise<{
         .map((f) => {
           const cur = live.get(d.id)?.[f.code];
           const curNote = includeLive && cur !== undefined ? ` =${cur}` : "";
+          const prot = f.protected ? " [PROTECTED]" : "";
           if (f.type === "Enum" && f.range?.length)
-            return `code "${f.code}" (${f.name}) Enum[${f.range.join("/")}]${curNote}`;
+            return `code "${f.code}" (${f.name}) Enum[${f.range.join("/")}]${curNote}${prot}`;
           if (f.type === "Integer")
-            return `code "${f.code}" (${f.name}) Integer[${f.min ?? 0}-${f.max ?? 100}]${curNote}`;
-          return `code "${f.code}" (${f.name}) Boolean${curNote}`;
+            return `code "${f.code}" (${f.name}) Integer[${f.min ?? 0}-${f.max ?? 100}]${curNote}${prot}`;
+          return `code "${f.code}" (${f.name}) Boolean${curNote}${prot}`;
         });
       lines.push(
         `    • ${d.name} (deviceId: ${d.id}, category: ${d.category}): ${controls.join("; ") || "(no controls)"}`,
@@ -144,6 +145,7 @@ Rules:
 - To RUN a saved routine (e.g. "run Good Night", "activate movie mode"), add it to "routines" using its exact routineId from the Saved routines list — do NOT re-list its individual actions in "actions". You may combine ad-hoc "actions" and "routines".
 - In "reply", describe what you're about to do — do NOT claim it is done (the user must confirm first).
 - Interpret natural language sensibly: "lights" = lighting switches; "striplights" = devices/controls whose name contains "strip"; "all other lights" = lighting controls not matched by the first clause. Use device and control NAMES to decide what counts as a light.
+- Controls marked [PROTECTED] are critical (e.g. router, doorbell) and must stay powered. NEVER propose turning a [PROTECTED] control off, and exclude them from "turn everything off"-style commands. (You may turn one on.) If a request would turn one off, do everything else and note in "reply" that you skipped the protected control.
 - Never invent deviceIds, codes, or routineIds that are not in the context. If you cannot map a request, explain why in "reply" with empty arrays.
 - "memory": you are given "What you remember about this user" in the context. Use "memory.add" ONLY for durable, user-specific facts or preferences worth recalling later (e.g. a nickname for a room, a habit/schedule, a standing preference like "likes the bedroom dim at night", their name). Do NOT store one-off commands, current device states, or things already remembered. Use "memory.remove" when a remembered item is contradicted or no longer true. Leave both arrays empty when there is nothing to change.
 - Keep "reply" concise. Output JSON only.`;

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession, guard, isRoomAccessible } from "@/lib/auth";
+import { isControlProtected } from "@/lib/config";
 import { getCatalogDevice, getDeviceRoomId, getRoutine } from "@/lib/store";
 import { setCommandLocal } from "@/lib/local";
 import { logAction } from "@/lib/logger";
@@ -48,8 +49,10 @@ export async function POST(
     ok: boolean;
     error?: string;
     locked?: boolean;
+    protected?: boolean;
   }[] = [];
   let ignoredLocked = 0;
+  let ignoredProtected = 0;
   const accessCache = new Map<string, boolean>();
   const accessible = async (deviceId: string): Promise<boolean> => {
     const roomId = await getDeviceRoomId(deviceId);
@@ -58,6 +61,17 @@ export async function POST(
   };
 
   for (const a of routine.actions) {
+    // Protected controls are never touched by routines.
+    if (isControlProtected(a.deviceId, a.code)) {
+      const device = await getCatalogDevice(a.deviceId);
+      results.push({
+        device: device?.cloudName ?? a.deviceId,
+        ok: false,
+        protected: true,
+      });
+      ignoredProtected++;
+      continue;
+    }
     // Check the lock before waiting/firing — skip locked actions entirely.
     if (!(await accessible(a.deviceId))) {
       const device = await getCatalogDevice(a.deviceId);
@@ -97,13 +111,20 @@ export async function POST(
   }
 
   const okCount = results.filter((r) => r.ok).length;
-  const failed = results.length - okCount - ignoredLocked;
+  const failed = results.length - okCount - ignoredLocked - ignoredProtected;
   logAction("ROUTINE_RUN", {
     user,
     name: routine.name,
     ok: okCount,
     failed,
     ignoredLocked,
+    ignoredProtected,
   });
-  return NextResponse.json({ ok: okCount, failed, ignoredLocked, results });
+  return NextResponse.json({
+    ok: okCount,
+    failed,
+    ignoredLocked,
+    ignoredProtected,
+    results,
+  });
 }

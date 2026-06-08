@@ -6,7 +6,7 @@
 // routes and server components) since the secret lives in data/config.json.
 
 import crypto from "crypto";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { NextResponse } from "next/server";
 import {
   getCredentialStamp,
@@ -118,7 +118,16 @@ export function readSessionToken(token: string | undefined | null): Session | nu
 
 /** The current request's session, or null if absent/invalid/expired. */
 export function getSession(): Session | null {
-  return readSessionToken(cookies().get(COOKIE_NAME)?.value);
+  // Web clients send the signed token in an HttpOnly cookie.
+  const fromCookie = readSessionToken(cookies().get(COOKIE_NAME)?.value);
+  if (fromCookie) return fromCookie;
+  // Native mobile clients can't rely on a persistent cookie jar, so they send
+  // the same signed token as a bearer header. The signature check is identical.
+  const auth = headers().get("authorization");
+  if (auth && auth.startsWith("Bearer ")) {
+    return readSessionToken(auth.slice(7).trim());
+  }
+  return null;
 }
 
 /** True if the current request carries a valid session cookie. */

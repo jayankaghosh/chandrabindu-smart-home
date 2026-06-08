@@ -55,14 +55,18 @@ export async function POST(req: Request) {
   }
 
   logAction("LOGIN", { username: identity.username, role: identity.role });
+  const token = createSessionToken(identity);
   const res = NextResponse.json({
     ok: true,
     username: identity.username,
     role: identity.role,
+    // Native mobile clients store this and send it as `Authorization: Bearer`.
+    // Web clients ignore it and rely on the HttpOnly cookie set below.
+    token,
   });
   res.cookies.set(
     COOKIE_NAME,
-    createSessionToken(identity),
+    token,
     authCookieOptions(req, SESSION_MAX_AGE),
   );
   // Start each session with no rooms unlocked.

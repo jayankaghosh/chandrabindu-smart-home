@@ -44,6 +44,8 @@ interface AppConfig {
   users?: StoredUser[];
   /** Per-room password locks, keyed by roomId. */
   roomLocks?: Record<string, RoomLock>;
+  /** Protected controls (critical — never auto-toggled): deviceId -> control codes. */
+  protectedControls?: Record<string, string[]>;
   tuya?: TuyaCreds;
   openrouter?: { apiKey: string; model: string; enabled?: boolean };
 }
@@ -107,6 +109,7 @@ export function setPassword(password: string): void {
     houseName: existing?.houseName,
     users: existing?.users,
     roomLocks: existing?.roomLocks,
+    protectedControls: existing?.protectedControls,
     tuya: existing?.tuya,
     openrouter: existing?.openrouter,
   };
@@ -299,6 +302,44 @@ export function getRoomLockStamp(roomId: string): string | null {
   const lock = read()?.roomLocks?.[roomId];
   if (!lock) return null;
   return crypto.createHash("sha256").update(lock.hash).digest("hex").slice(0, 16);
+}
+
+// ── Protected controls ──────────────────────────────────────────────────────
+
+export function isControlProtected(deviceId: string, code: string): boolean {
+  return (read()?.protectedControls?.[deviceId] ?? []).includes(code);
+}
+
+/** Protected control codes for one device. */
+export function protectedControlsFor(deviceId: string): string[] {
+  return read()?.protectedControls?.[deviceId] ?? [];
+}
+
+/** Flat list of every protected control across all devices. */
+export function listProtectedControls(): { deviceId: string; code: string }[] {
+  const map = read()?.protectedControls ?? {};
+  const out: { deviceId: string; code: string }[] = [];
+  for (const [deviceId, codes] of Object.entries(map)) {
+    for (const code of codes) out.push({ deviceId, code });
+  }
+  return out;
+}
+
+/** Mark or unmark a single control as protected (admin). */
+export function setControlProtected(
+  deviceId: string,
+  code: string,
+  isProtected: boolean,
+): void {
+  const config = read();
+  if (!config) throw new Error("App is not onboarded yet");
+  const map = { ...(config.protectedControls ?? {}) };
+  const set = new Set(map[deviceId] ?? []);
+  if (isProtected) set.add(code);
+  else set.delete(code);
+  if (set.size) map[deviceId] = [...set];
+  else delete map[deviceId];
+  write({ ...config, protectedControls: map });
 }
 
 export function getSessionSecret(): string {

@@ -100,6 +100,8 @@ export interface DeviceFunction {
   step?: number;
   scale?: number;
   unit?: string;
+  /** Admin-marked critical control — never auto-toggled, control restricted. */
+  protected?: boolean;
 }
 
 export interface DeviceStatus {

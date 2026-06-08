@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Shield } from "lucide-react";
 import type { DeviceFunction } from "@/lib/types";
 import {
   controlKind,
@@ -13,6 +14,18 @@ import {
 function Sheen() {
   return (
     <span className="pointer-events-none absolute inset-0 rounded-[inherit] bg-gradient-to-b from-white/25 via-transparent to-transparent" />
+  );
+}
+
+/** Small badge marking a protected control. */
+function ProtectedBadge() {
+  return (
+    <span
+      title="Protected — admin only"
+      className="absolute bottom-2 right-2 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-white/85 text-brand-600 shadow ring-1 ring-black/5"
+    >
+      <Shield size={11} />
+    </span>
   );
 }
 
@@ -37,11 +50,13 @@ export default function ControlTile({
   fn,
   value,
   disabled,
+  protected: isProtected,
   onChange,
 }: {
   fn: DeviceFunction;
   value: unknown;
   disabled?: boolean;
+  protected?: boolean;
   onChange: (value: unknown) => void;
 }) {
   const kind = controlKind(fn.name, fn.code);
@@ -62,6 +77,7 @@ export default function ControlTile({
         }`}
       >
         {on && <Sheen />}
+        {isProtected && <ProtectedBadge />}
         <div className="relative flex items-start justify-between">
           <span
             className={`flex h-10 w-10 items-center justify-center rounded-full transition-colors ${
@@ -114,6 +130,7 @@ export default function ControlTile({
           }`}
         >
           {on && <Sheen />}
+          {isProtected && <ProtectedBadge />}
           <div className="relative mb-3 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <span

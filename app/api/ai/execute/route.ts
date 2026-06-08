@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession, guard, isRoomAccessible } from "@/lib/auth";
-import { isAiEnabled } from "@/lib/config";
+import { isAiEnabled, isControlProtected } from "@/lib/config";
 import { getCatalogDevice, getDeviceRoomId } from "@/lib/store";
 import { setCommandLocal } from "@/lib/local";
 import { buildDeviceIndex, validateActions } from "@/lib/chat";
@@ -17,7 +17,8 @@ export async function POST(req: Request) {
   if (!isAiEnabled()) {
     return NextResponse.json({ error: "AI features are turned off." }, { status: 400 });
   }
-  const user = getSession()?.username;
+  const session = getSession()!;
+  const user = session.username;
 
   let raw: any[] = [];
   try {
@@ -38,11 +39,19 @@ export async function POST(req: Request) {
     ok: boolean;
     error?: string;
     locked?: boolean;
+    protected?: boolean;
   }[] = [];
   let ignoredLocked = 0;
+  let ignoredProtected = 0;
   const accessCache = new Map<string, boolean>();
 
   for (const a of actions) {
+    // Protected controls: only an admin may control them.
+    if (isControlProtected(a.deviceId, a.code) && session.role !== "admin") {
+      results.push({ device: a.deviceName, ok: false, protected: true });
+      ignoredProtected++;
+      continue;
+    }
     const roomId = await getDeviceRoomId(a.deviceId);
     if (!accessCache.has(roomId)) accessCache.set(roomId, isRoomAccessible(roomId));
     if (!accessCache.get(roomId)) {
@@ -71,6 +80,12 @@ export async function POST(req: Request) {
   }
 
   const okCount = results.filter((r) => r.ok).length;
-  const failed = results.length - okCount - ignoredLocked;
-  return NextResponse.json({ ok: okCount, failed, ignoredLocked, results });
+  const failed = results.length - okCount - ignoredLocked - ignoredProtected;
+  return NextResponse.json({
+    ok: okCount,
+    failed,
+    ignoredLocked,
+    ignoredProtected,
+    results,
+  });
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession, guard, isRoomAccessible } from "@/lib/auth";
+import { isControlProtected } from "@/lib/config";
 import { getCatalogDevice, getDeviceRoomId, getDeviceRoomName } from "@/lib/store";
 import { setCommandLocal } from "@/lib/local";
 import { logAction } from "@/lib/logger";
@@ -37,7 +38,8 @@ export async function POST(
 ) {
   const denied = guard();
   if (denied) return denied;
-  const user = getSession()?.username;
+  const session = getSession()!;
+  const user = session.username;
   const device = await getCatalogDevice(params.id);
   if (!device) {
     return NextResponse.json({ error: "Unknown device" }, { status: 404 });
@@ -69,6 +71,13 @@ export async function POST(
       return NextResponse.json(
         { error: "Each command needs a code" },
         { status: 400 },
+      );
+    }
+    // Protected controls can only be changed by an admin.
+    if (isControlProtected(params.id, cmd.code) && session.role !== "admin") {
+      return NextResponse.json(
+        { error: "This control is protected. Only an admin can change it.", protected: true },
+        { status: 403 },
       );
     }
     const fn = byCode.get(cmd.code);

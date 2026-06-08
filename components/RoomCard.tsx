@@ -13,6 +13,8 @@ import {
   LockOpen,
   KeyRound,
   Trash2,
+  Shield,
+  ShieldAlert,
 } from "lucide-react";
 import type { Room, UiDevice } from "@/lib/types";
 import ControlTile from "./ControlTile";
@@ -576,6 +578,9 @@ function DeviceGroup({
   const [draftRoom, setDraftRoom] = useState(device.roomId);
   const [draftControls, setDraftControls] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const [pendingCmd, setPendingCmd] = useState<{ code: string; value: unknown } | null>(null);
+  const [unprotectCode, setUnprotectCode] = useState<string | null>(null);
+  const [protecting, setProtecting] = useState(false);
 
   const reachable = state?.reachable ?? null;
   const scanning = state?.scanning ?? false;
@@ -583,9 +588,39 @@ function DeviceGroup({
   const controllable = device.functions.filter((f) =>
     ["Boolean", "Enum", "Integer"].includes(f.type),
   );
+  const hasProtected = controllable.some((f) => f.protected);
   const onCount = controllable.filter(
     (f) => f.type === "Boolean" && values[f.code] === true,
   ).length;
+
+  const controlName = (code: string) =>
+    controllable.find((f) => f.code === code)?.name ?? code;
+
+  // Protected controls: non-admins can't command; admins must confirm first.
+  function requestCommand(code: string, value: unknown) {
+    const isProt = !!controllable.find((f) => f.code === code)?.protected;
+    if (isProt && !isAdmin) return;
+    if (isProt && isAdmin) {
+      setPendingCmd({ code, value });
+      return;
+    }
+    onCommand(device.id, code, value);
+  }
+
+  async function setControlProtected(code: string, next: boolean) {
+    setProtecting(true);
+    try {
+      await fetch(`/api/devices/${device.id}/protect`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code, protected: next }),
+      });
+      setUnprotectCode(null);
+      onChanged();
+    } finally {
+      setProtecting(false);
+    }
+  }
 
   function startEditing() {
     setDraftName(device.name);
@@ -638,6 +673,12 @@ function DeviceGroup({
           <span className="truncate text-[13px] font-semibold text-slate-800 dark:text-slate-200">
             {device.name}
           </span>
+          {hasProtected && (
+            <Shield
+              size={12}
+              className="shrink-0 text-brand-600 dark:text-slate-200"
+            />
+          )}
           <span className={`shrink-0 ${status.cls}`}>{status.icon}</span>
           {onCount > 0 && (
             <span className="shrink-0 text-xs font-medium text-brand-700 dark:text-white">
@@ -683,18 +724,40 @@ function DeviceGroup({
                 {controllable.length > 0 && (
                   <div className="space-y-1.5 rounded-xl border border-white/60 bg-white/40 p-2 dark:border-white/10 dark:bg-white/[0.05]">
                     <p className="px-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
-                      Control labels
+                      Control labels & protection
                     </p>
                     {controllable.map((f) => (
-                      <input
-                        key={f.code}
-                        value={draftControls[f.code] ?? ""}
-                        onChange={(e) =>
-                          setDraftControls((c) => ({ ...c, [f.code]: e.target.value }))
-                        }
-                        placeholder={f.code}
-                        className={PANEL_FIELD}
-                      />
+                      <div key={f.code} className="flex items-center gap-1.5">
+                        <input
+                          value={draftControls[f.code] ?? ""}
+                          onChange={(e) =>
+                            setDraftControls((c) => ({ ...c, [f.code]: e.target.value }))
+                          }
+                          placeholder={f.code}
+                          className={PANEL_FIELD}
+                        />
+                        <button
+                          type="button"
+                          disabled={protecting}
+                          onClick={() =>
+                            f.protected
+                              ? setUnprotectCode(f.code)
+                              : setControlProtected(f.code, true)
+                          }
+                          title={
+                            f.protected
+                              ? "Protected — click to remove protection"
+                              : "Protect this control (never auto-toggled; admin-only)"
+                          }
+                          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border disabled:opacity-50 ${
+                            f.protected
+                              ? "border-brand-500 bg-brand-500/10 text-brand-600"
+                              : "border-slate-300 bg-white text-slate-400 hover:text-slate-600"
+                          }`}
+                        >
+                          <Shield size={15} />
+                        </button>
+                      </div>
                     ))}
                   </div>
                 )}
@@ -714,6 +777,11 @@ function DeviceGroup({
               </div>
             )}
 
+            {hasProtected && !isAdmin && (
+              <p className="mb-1.5 flex items-center gap-1.5 px-1 text-xs font-medium text-brand-600 dark:text-slate-300">
+                <Shield size={12} /> Protected controls can only be changed by an admin.
+              </p>
+            )}
             {controllable.length === 0 ? (
               <p className="px-1 pb-1 text-xs text-slate-500 dark:text-slate-400">
                 No controllable actions.
@@ -725,13 +793,102 @@ function DeviceGroup({
                     key={fn.code}
                     fn={fn}
                     value={values[fn.code]}
-                    disabled={reachable === false}
-                    onChange={(v) => onCommand(device.id, fn.code, v)}
+                    disabled={reachable === false || (!!fn.protected && !isAdmin)}
+                    protected={!!fn.protected}
+                    onChange={(v) => requestCommand(fn.code, v)}
                   />
                 ))}
               </div>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* Confirm a command on a protected control (admin only) */}
+      {pendingCmd && (
+        <ConfirmModal
+          title="Protected control"
+          body={`"${controlName(pendingCmd.code)}" on ${device.name} is protected. Apply this change anyway?`}
+          confirmLabel="Yes, change it"
+          onCancel={() => setPendingCmd(null)}
+          onConfirm={() => {
+            onCommand(device.id, pendingCmd.code, pendingCmd.value);
+            setPendingCmd(null);
+          }}
+        />
+      )}
+
+      {/* Confirm removing protection from a control */}
+      {unprotectCode && (
+        <ConfirmModal
+          title="Remove protection?"
+          body={`"${controlName(unprotectCode)}" will no longer be protected — routines and non-admins will be able to switch it off.`}
+          confirmLabel="Remove protection"
+          danger
+          busy={protecting}
+          onCancel={() => setUnprotectCode(null)}
+          onConfirm={() => setControlProtected(unprotectCode, false)}
+        />
+      )}
+    </div>
+  );
+}
+
+// Small reusable confirmation dialog.
+function ConfirmModal({
+  title,
+  body,
+  confirmLabel,
+  onConfirm,
+  onCancel,
+  busy,
+  danger,
+}: {
+  title: string;
+  body: string;
+  confirmLabel: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+  busy?: boolean;
+  danger?: boolean;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm"
+      onClick={() => !busy && onCancel()}
+    >
+      <div
+        className="card w-full max-w-sm animate-scale-in p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-2 flex items-center gap-2">
+          <span
+            className={`flex h-9 w-9 items-center justify-center rounded-xl ${
+              danger
+                ? "bg-red-500/15 text-red-600 dark:bg-white/10 dark:text-slate-200"
+                : "bg-brand-500/15 text-brand-600 dark:bg-white/10 dark:text-slate-200"
+            }`}
+          >
+            {danger ? <ShieldAlert size={18} /> : <Shield size={18} />}
+          </span>
+          <h2 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-100">
+            {title}
+          </h2>
+        </div>
+        <p className="mb-5 text-sm text-slate-600 dark:text-slate-300">{body}</p>
+        <div className="flex items-center justify-end gap-2">
+          <button onClick={onCancel} disabled={busy} className="btn-ghost">
+            <X size={15} />
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={busy}
+            className={`btn-primary ${danger ? "!bg-red-500" : ""}`}
+          >
+            {busy ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
+            {confirmLabel}
+          </button>
         </div>
       </div>
     </div>

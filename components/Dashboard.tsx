@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -10,6 +10,7 @@ import {
   AlertTriangle,
   CloudDownload,
   Settings as SettingsIcon,
+  ShieldAlert,
 } from "lucide-react";
 import type { Room } from "@/lib/types";
 import RoomCard, { type DeviceStatusState } from "./RoomCard";
@@ -60,6 +61,16 @@ export default function Dashboard({
   // during SSR causes a hydration mismatch (e.g. "Good evening" vs "Good morning").
   const [greet, setGreet] = useState("");
   useEffect(() => setGreet(greeting()), []);
+  // All protected controls + their last server-read state (admin warning source).
+  const [protectedControls, setProtectedControls] = useState<
+    {
+      deviceId: string;
+      code: string;
+      deviceName: string;
+      controlName: string;
+      state: string;
+    }[]
+  >([]);
   const [statusByDevice, setStatusByDevice] = useState<
     Record<string, DeviceStatusState>
   >({});
@@ -122,11 +133,48 @@ export default function Dashboard({
     load();
   }, [load]);
 
+  // Poll protected devices' power state (admin) and warn if any is off.
+  const fetchProtected = useCallback(async () => {
+    if (!isAdmin) return;
+    try {
+      const res = await fetch("/api/protected");
+      if (!res.ok) return;
+      const data = await res.json();
+      setProtectedControls(data.controls ?? []);
+    } catch {
+      /* ignore */
+    }
+  }, [isAdmin]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    fetchProtected();
+    const t = setInterval(() => {
+      if (document.visibilityState === "visible") fetchProtected();
+    }, 30_000);
+    return () => clearInterval(t);
+  }, [isAdmin, fetchProtected]);
+
+  // Which protected controls are OFF — prefer the live status the dashboard
+  // already has (updates instantly on toggle/poll), falling back to the last
+  // server read for controls we haven't polled.
+  const protectedOff = useMemo(
+    () =>
+      protectedControls.filter((c) => {
+        if (c.state === "na") return false; // non-boolean → no "off"
+        const live = statusByDevice[c.deviceId]?.values;
+        if (live && c.code in live) return live[c.code] !== true;
+        return c.state === "off";
+      }),
+    [protectedControls, statusByDevice],
+  );
+
   // Manual refresh: reload rooms + pull status for everything once.
   const refresh = useCallback(() => {
     load();
     fetchAllStatus();
-  }, [load, fetchAllStatus]);
+    fetchProtected();
+  }, [load, fetchAllStatus, fetchProtected]);
 
   const sendCommand = useCallback(
     async (deviceId: string, code: string, value: unknown) => {
@@ -248,6 +296,20 @@ export default function Dashboard({
       </header>
 
       <main className="mx-auto w-full max-w-[1700px] px-4 pb-16 pt-6 sm:px-6 lg:px-8">
+        {isAdmin && protectedOff.length > 0 && (
+          <div className="mb-4 flex items-start gap-3 rounded-2xl border border-red-300 bg-red-50 p-4 text-sm text-red-700 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-300">
+            <ShieldAlert size={18} className="mt-0.5 shrink-0" />
+            <p>
+              <span className="font-semibold">
+                Protected control{protectedOff.length > 1 ? "s" : ""} OFF:
+              </span>{" "}
+              {protectedOff
+                .map((c) => `${c.deviceName} – ${c.controlName}`)
+                .join(", ")}
+              . These should stay on — switch them back on.
+            </p>
+          </div>
+        )}
         <div className="mb-5 inline-flex rounded-2xl border border-white/60 dark:border-white/10 bg-white/40 dark:bg-white/[0.05] p-1 backdrop-blur-xl">
           <button onClick={() => setView("rooms")} className={tabCls(view === "rooms")}>
             Rooms

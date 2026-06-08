@@ -83,7 +83,7 @@ export default function Routines({
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || "Failed");
       let summary: string;
-      if (!d.failed && !d.ignoredLocked) {
+      if (!d.failed && !d.ignoredLocked && !d.ignoredProtected) {
         summary = `Done · ${d.ok} action${d.ok === 1 ? "" : "s"}`;
       } else {
         const bits = [`${d.ok} ran`];
@@ -91,6 +91,10 @@ export default function Routines({
         if (d.ignoredLocked)
           bits.push(
             `${d.ignoredLocked} skipped (locked room${d.ignoredLocked === 1 ? "" : "s"})`,
+          );
+        if (d.ignoredProtected)
+          bits.push(
+            `${d.ignoredProtected} skipped (protected)`,
           );
         summary = bits.join(" · ");
       }

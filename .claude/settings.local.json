@@ -71,7 +71,24 @@
       "Bash(curl -s -b /tmp/c.txt -X PUT http://localhost:3000/api/house -H 'content-type: application/json' -d '{\"name\":\"My Home\"}')",
       "Bash(echo \"tsc exit: $?\")",
       "Bash(echo \"exit $?\")",
-      "Bash(grep -n \"wantsLive\\\\|includeLive\\\\|getStatusLocal\\\\|curNote\\\\|=\\\\${cur}\\\\|live\\\\b\" lib/chat.ts)"
+      "Bash(grep -n \"wantsLive\\\\|includeLive\\\\|getStatusLocal\\\\|curNote\\\\|=\\\\${cur}\\\\|live\\\\b\" lib/chat.ts)",
+      "Bash(grep -E \"\\\\.tsx$\")",
+      "Bash(sed -n '1,60p' app/api/ai/chat/route.ts)",
+      "Bash(sed -n '1,70p' app/api/insights/route.ts)",
+      "Bash(./node_modules/.bin/tsc --noEmit)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(./node_modules/.bin/tsc --noEmit --listFiles)",
+      "Bash(timeout 90 npx expo config --type prebuild)",
+      "Bash(echo \"expo config exit:$?\")",
+      "Read(//tmp/**)",
+      "Bash(timeout 150 ./node_modules/.bin/tsc --noEmit -p tsconfig.json)",
+      "Bash(timeout 120 npx expo config --type public)",
+      "Bash(echo \"exit:$?\")",
+      "Bash(tee /tmp/root_tsc.txt)",
+      "Bash(./node_modules/.bin/tsc --noEmit -p tsconfig.json)",
+      "Bash(tee /tmp/root_tsc2.txt)",
+      "Bash(grep -E \"\\\\.tsx?$\")",
+      "Bash(tee /tmp/root_tsc3.txt)"
     ]
   }
 }

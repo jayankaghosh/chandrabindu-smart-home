@@ -3,6 +3,7 @@
 
 import { promises as fs } from "fs";
 import path from "path";
+import { isControlProtected } from "./config";
 import type {
   Catalog,
   CatalogDevice,
@@ -202,6 +203,7 @@ export async function getModel(): Promise<{
         step: f.step,
         scale: f.scale,
         unit: f.unit,
+        protected: isControlProtected(d.id, f.code),
       })),
     };
     (byId.get(roomId) ?? unassigned).devices.push(device);
