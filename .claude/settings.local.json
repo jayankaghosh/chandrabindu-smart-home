@@ -88,7 +88,13 @@
       "Bash(./node_modules/.bin/tsc --noEmit -p tsconfig.json)",
       "Bash(tee /tmp/root_tsc2.txt)",
       "Bash(grep -E \"\\\\.tsx?$\")",
-      "Bash(tee /tmp/root_tsc3.txt)"
+      "Bash(tee /tmp/root_tsc3.txt)",
+      "Bash(tee /tmp/m_tsc2.txt)",
+      "Bash(node -e \"const g=require\\('/Users/joy/Projects/playground/chandrabindu-smart-home/mobile-app/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/glyphmaps/MaterialCommunityIcons.json'\\); ['shield','shield-check','shield-outline','shield-alert','shield-edit-outline','shield-edit','sofa-outline','home-automation','cloud-sync-outline','power-socket','power-plug','toggle-switch','chip'].forEach\\(n=>console.log\\(\\(n in g?'OK  ':'MISS'\\)+' '+n\\)\\)\")",
+      "Bash(eas build:list --platform android --limit 1 --non-interactive --json)",
+      "Bash(node -e \"let s='';process.stdin.on\\('data',d=>s+=d\\).on\\('end',\\(\\)=>{try{const a=JSON.parse\\(s\\);const b=a[0]||{};console.log\\('id:',b.id\\);console.log\\('status:',b.status\\);console.log\\('error:',JSON.stringify\\(b.error\\)\\);console.log\\('logs:',b.logsUrl||b.logs\\);}catch\\(e\\){console.log\\('parse fail'\\);console.log\\(s.slice\\(0,500\\)\\)}}\\)\")",
+      "Bash(npx expo-doctor *)",
+      "Bash(npx expo *)"
     ]
   }
 }
