@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "Chandrabindu",
+    "slug": "chandrabindu-smart-home",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "backgroundColor": "#0b0e16",
+      "resizeMode": "contain"
+    },
+    "android": {
+      "package": "com.chandrabindu.smarthome",
+      "permissions": [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
+      ],
+      "adaptiveIcon": {
+        "backgroundColor": "#0b0e16"
+      }
+    },
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "ad001e23-1835-4f9d-960b-9f912fc9261a"
+      }
+    }
+  }
+}

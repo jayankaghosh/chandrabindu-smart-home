@@ -14,11 +14,13 @@ import {
   House,
   Users,
   Lock,
+  MonitorSmartphone,
 } from "lucide-react";
 import { REGIONS } from "@/lib/regions";
 import ManualDeviceForm from "./ManualDeviceForm";
 import UsersManager from "./UsersManager";
 import ChangePassword from "./ChangePassword";
+import DevicePairing from "./DevicePairing";
 
 export default function Settings({ isAdmin }: { isAdmin: boolean }) {
   const [resyncing, setResyncing] = useState(false);
@@ -221,6 +223,11 @@ export default function Settings({ isAdmin }: { isAdmin: boolean }) {
         {/* Change password — available to every signed-in user */}
         <Section icon={<Lock size={16} />} title="Change password">
           <ChangePassword minLength={isAdmin ? 4 : 6} />
+        </Section>
+
+        {/* Link an external device — available to every signed-in user */}
+        <Section icon={<MonitorSmartphone size={16} />} title="Link a device">
+          <DevicePairing />
         </Section>
 
         {isAdmin && (

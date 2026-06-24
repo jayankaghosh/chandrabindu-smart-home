@@ -1,0 +1,21 @@
+{
+  "name": "chandrabindu-telegram-bot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Telegram bot for the Chandrabindu Smart Home — controls the house via the existing REST API.",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/bot.ts",
+    "dev": "tsx watch src/bot.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "grammy": "^1.30.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.10",
+    "tsx": "^4.19.1",
+    "typescript": "^5.5.3"
+  }
+}

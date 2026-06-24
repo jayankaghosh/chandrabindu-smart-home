@@ -94,7 +94,14 @@
       "Bash(eas build:list --platform android --limit 1 --non-interactive --json)",
       "Bash(node -e \"let s='';process.stdin.on\\('data',d=>s+=d\\).on\\('end',\\(\\)=>{try{const a=JSON.parse\\(s\\);const b=a[0]||{};console.log\\('id:',b.id\\);console.log\\('status:',b.status\\);console.log\\('error:',JSON.stringify\\(b.error\\)\\);console.log\\('logs:',b.logsUrl||b.logs\\);}catch\\(e\\){console.log\\('parse fail'\\);console.log\\(s.slice\\(0,500\\)\\)}}\\)\")",
       "Bash(npx expo-doctor *)",
-      "Bash(npx expo *)"
+      "Bash(npx expo *)",
+      "Bash(tee /tmp/wtsc.txt)",
+      "Bash(rm -rf /tmp/wexp && npx expo export --platform android --output-dir /tmp/wexp 2>&1 | grep -iE \"error|unable|cannot|resolve|module|not found\" | head -20; rm -rf /tmp/wexp)",
+      "Bash(npm ls *)",
+      "Bash(node -e 'const p=require\\('\\\\''./'\\\\''+ '\\\\''node_modules/react-native/node_modules/@react-native/virtualized-lists'\\\\''+'\\\\''/package.json'\\\\''\\); console.log\\('\\\\''exports:'\\\\'',JSON.stringify\\(p.exports\\)\\);console.log\\('\\\\''main:'\\\\'',p.main\\)')",
+      "Bash(node -e \"const p=require\\('./node_modules/@babel/runtime/package.json'\\); console.log\\('version',p.version\\); console.log\\('has exports:', !!p.exports\\); console.log\\('sample:', JSON.stringify\\(p.exports&&p.exports['./helpers/objectWithoutProperties']\\)\\)\")",
+      "Bash(node -e \"const p=require\\('./node_modules/react-native-webview/package.json'\\); console.log\\('main:',p.main,'| rn:',p['react-native'],'| version:',p.version\\)\")",
+      "Bash(echo \"EXIT: $?\")"
     ]
   }
 }
