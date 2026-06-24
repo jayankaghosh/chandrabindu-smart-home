@@ -18,6 +18,8 @@ import {
 } from "lucide-react";
 import type { Room, UiDevice } from "@/lib/types";
 import ControlTile from "./ControlTile";
+import FavouritableControl from "./FavouritableControl";
+import { favKey } from "./favKey";
 
 export interface DeviceStatusState {
   reachable: boolean | null;
@@ -54,8 +56,10 @@ export default function RoomCard({
   isAdmin,
   statusByDevice,
   rooms,
+  favourites,
   onCommand,
   onPoll,
+  onToggleFavourite,
   onChanged,
 }: {
   room: Room;
@@ -63,8 +67,10 @@ export default function RoomCard({
   isAdmin: boolean;
   statusByDevice: Record<string, DeviceStatusState>;
   rooms: { id: string; name: string }[];
+  favourites: Set<string>;
   onCommand: (deviceId: string, code: string, value: unknown) => void;
   onPoll: (deviceId: string) => void;
+  onToggleFavourite: (deviceId: string, code: string) => void;
   onChanged: () => void;
 }) {
   const [open, toggle] = usePersistedOpen(`room-open:${room.id}`);
@@ -98,8 +104,10 @@ export default function RoomCard({
       isAdmin={isAdmin}
       statusByDevice={statusByDevice}
       rooms={rooms}
+      favourites={favourites}
       onCommand={onCommand}
       onPoll={onPoll}
+      onToggleFavourite={onToggleFavourite}
       onChanged={onChanged}
       index={index}
     />
@@ -114,8 +122,10 @@ function RoomCardInner({
   isAdmin,
   statusByDevice,
   rooms,
+  favourites,
   onCommand,
   onPoll,
+  onToggleFavourite,
   onChanged,
   index,
 }: {
@@ -126,8 +136,10 @@ function RoomCardInner({
   isAdmin: boolean;
   statusByDevice: Record<string, DeviceStatusState>;
   rooms: { id: string; name: string }[];
+  favourites: Set<string>;
   onCommand: (deviceId: string, code: string, value: unknown) => void;
   onPoll: (deviceId: string) => void;
+  onToggleFavourite: (deviceId: string, code: string) => void;
   onChanged: () => void;
   index: number;
 }) {
@@ -240,8 +252,10 @@ function RoomCardInner({
               isAdmin={isAdmin}
               state={statusByDevice[device.id]}
               rooms={rooms}
+              favourites={favourites}
               onCommand={onCommand}
               onPoll={onPoll}
+              onToggleFavourite={onToggleFavourite}
               onChanged={onChanged}
             />
           ))}
@@ -541,16 +555,20 @@ function DeviceGroup({
   isAdmin,
   state,
   rooms,
+  favourites,
   onCommand,
   onPoll,
+  onToggleFavourite,
   onChanged,
 }: {
   device: UiDevice;
   isAdmin: boolean;
   state?: DeviceStatusState;
   rooms: { id: string; name: string }[];
+  favourites: Set<string>;
   onCommand: (deviceId: string, code: string, value: unknown) => void;
   onPoll: (deviceId: string) => void;
+  onToggleFavourite: (deviceId: string, code: string) => void;
   onChanged: () => void;
 }) {
   const [open, toggle] = usePersistedOpen(`dev-open:${device.id}`);
@@ -787,14 +805,16 @@ function DeviceGroup({
                 No controllable actions.
               </p>
             ) : (
-              <div className="grid grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-2 gap-x-2.5 gap-y-3">
                 {controllable.map((fn) => (
-                  <ControlTile
+                  <FavouritableControl
                     key={fn.code}
                     fn={fn}
                     value={values[fn.code]}
                     disabled={reachable === false || (!!fn.protected && !isAdmin)}
-                    protected={!!fn.protected}
+                    isProtected={!!fn.protected}
+                    isFavourite={favourites.has(favKey(device.id, fn.code))}
+                    onToggleFavourite={() => onToggleFavourite(device.id, fn.code)}
                     onChange={(v) => requestCommand(fn.code, v)}
                   />
                 ))}

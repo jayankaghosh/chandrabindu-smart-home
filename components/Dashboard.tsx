@@ -16,6 +16,8 @@ import type { Room } from "@/lib/types";
 import RoomCard, { type DeviceStatusState } from "./RoomCard";
 import Routines from "./Routines";
 import Insights from "./Insights";
+import Favourites from "./Favourites";
+import { favKey } from "./favKey";
 import Assistant from "./Assistant";
 import ThemeToggle from "./ThemeToggle";
 
@@ -55,8 +57,14 @@ export default function Dashboard({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
-  const [view, setView] = useState<"rooms" | "routines" | "insights">("rooms");
+  const [view, setView] = useState<
+    "favourites" | "rooms" | "routines" | "insights"
+  >("rooms");
   const [aiAvailable, setAiAvailable] = useState(false);
+  // The user's starred controls, keyed `${deviceId}::${code}`.
+  const [favourites, setFavourites] = useState<Set<string>>(new Set());
+  // Land on Favourites if the user has any — applied once, after first load.
+  const appliedDefaultView = useRef(false);
   // Computed on the client only — depends on the local clock, so rendering it
   // during SSR causes a hydration mismatch (e.g. "Good evening" vs "Good morning").
   const [greet, setGreet] = useState("");
@@ -132,6 +140,61 @@ export default function Dashboard({
   useEffect(() => {
     load();
   }, [load]);
+
+  // Load this user's favourites; on first load, land on Favourites if any exist.
+  const loadFavourites = useCallback(async () => {
+    try {
+      const res = await fetch("/api/favourites");
+      if (!res.ok) return;
+      const data = await res.json();
+      const keys = (data.favourites ?? []).map((f: { deviceId: string; code: string }) =>
+        favKey(f.deviceId, f.code),
+      );
+      setFavourites(new Set(keys));
+      if (!appliedDefaultView.current) {
+        appliedDefaultView.current = true;
+        if (keys.length > 0) setView("favourites");
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    loadFavourites();
+  }, [loadFavourites]);
+
+  // Optimistically star/unstar a control, then persist. `next` is computed from
+  // the latest favourites (via a ref — toggleFavourite is memoized) BEFORE the
+  // state update, so the updater stays pure (safe under StrictMode double-invoke).
+  const favouritesRef = useRef(favourites);
+  favouritesRef.current = favourites;
+  const toggleFavourite = useCallback(async (deviceId: string, code: string) => {
+    const key = favKey(deviceId, code);
+    const next = !favouritesRef.current.has(key);
+    setFavourites((prev) => {
+      const copy = new Set(prev);
+      if (next) copy.add(key);
+      else copy.delete(key);
+      return copy;
+    });
+    try {
+      const res = await fetch("/api/favourites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deviceId, code, favourite: next }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      // Revert on failure.
+      setFavourites((prev) => {
+        const copy = new Set(prev);
+        if (next) copy.delete(key);
+        else copy.add(key);
+        return copy;
+      });
+    }
+  }, []);
 
   // Poll protected devices' power state (admin) and warn if any is off.
   const fetchProtected = useCallback(async () => {
@@ -311,6 +374,12 @@ export default function Dashboard({
           </div>
         )}
         <div className="mb-5 inline-flex rounded-2xl border border-white/60 dark:border-white/10 bg-white/40 dark:bg-white/[0.05] p-1 backdrop-blur-xl">
+          <button
+            onClick={() => setView("favourites")}
+            className={tabCls(view === "favourites")}
+          >
+            Favourites
+          </button>
           <button onClick={() => setView("rooms")} className={tabCls(view === "rooms")}>
             Rooms
           </button>
@@ -328,6 +397,17 @@ export default function Dashboard({
           </button>
         </div>
 
+        {view === "favourites" && (
+          <Favourites
+            rooms={rooms ?? []}
+            favourites={favourites}
+            statusByDevice={statusByDevice}
+            isAdmin={isAdmin}
+            onCommand={sendCommand}
+            onPoll={fetchDeviceStatus}
+            onToggleFavourite={toggleFavourite}
+          />
+        )}
         {view === "routines" && <Routines rooms={rooms ?? []} isAdmin={isAdmin} />}
         {view === "insights" && <Insights isAdmin={isAdmin} />}
 
@@ -399,8 +479,10 @@ export default function Dashboard({
                 isAdmin={isAdmin}
                 statusByDevice={statusByDevice}
                 rooms={roomOptions}
+                favourites={favourites}
                 onCommand={sendCommand}
                 onPoll={fetchDeviceStatus}
+                onToggleFavourite={toggleFavourite}
                 onChanged={load}
               />
             ))}
