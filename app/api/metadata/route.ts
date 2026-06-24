@@ -8,7 +8,11 @@ export const dynamic = "force-dynamic";
 //
 // `name` is a stable identifier the wrapper matches against; keep it in sync
 // with the EXPECTED_NAME constant in the mobile app.
-export const APP_METADATA = {
+//
+// NOTE: not exported — a Next.js route file may only export route handlers and
+// known config fields (GET, dynamic, …); exporting anything else fails the
+// production type check (`next build`).
+const APP_METADATA = {
   name: "Chandrabindu Smart Home",
   description: "Local-first control for your smart home, served from your home hub.",
   version: "1.0.0",
