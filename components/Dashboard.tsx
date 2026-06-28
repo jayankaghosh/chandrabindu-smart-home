@@ -36,6 +36,10 @@ function greeting(): string {
   return "Good evening";
 }
 
+type View = "favourites" | "rooms" | "routines" | "insights";
+const VIEW_KEY = "dashboard-view";
+const VIEWS: readonly View[] = ["favourites", "rooms", "routines", "insights"];
+
 function tabCls(active: boolean): string {
   return active
     ? "rounded-xl bg-white px-5 py-1.5 text-sm font-semibold text-slate-900 shadow-sm dark:bg-white/90 dark:text-slate-900"
@@ -57,14 +61,29 @@ export default function Dashboard({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
-  const [view, setView] = useState<
-    "favourites" | "rooms" | "routines" | "insights"
-  >("rooms");
+  // Default to "rooms" for SSR/first render; the last-open tab is restored from
+  // localStorage in an effect (reading it in the initializer would break SSR).
+  const [view, setView] = useState<View>("rooms");
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem(VIEW_KEY);
+      if (v && (VIEWS as readonly string[]).includes(v)) setView(v as View);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  // Switch tabs and remember the choice for next time.
+  const selectView = useCallback((v: View) => {
+    setView(v);
+    try {
+      localStorage.setItem(VIEW_KEY, v);
+    } catch {
+      /* ignore */
+    }
+  }, []);
   const [aiAvailable, setAiAvailable] = useState(false);
   // The user's starred controls, keyed `${deviceId}::${code}`.
   const [favourites, setFavourites] = useState<Set<string>>(new Set());
-  // Land on Favourites if the user has any — applied once, after first load.
-  const appliedDefaultView = useRef(false);
   // Computed on the client only — depends on the local clock, so rendering it
   // during SSR causes a hydration mismatch (e.g. "Good evening" vs "Good morning").
   const [greet, setGreet] = useState("");
@@ -141,7 +160,7 @@ export default function Dashboard({
     load();
   }, [load]);
 
-  // Load this user's favourites; on first load, land on Favourites if any exist.
+  // Load this user's favourites.
   const loadFavourites = useCallback(async () => {
     try {
       const res = await fetch("/api/favourites");
@@ -151,10 +170,6 @@ export default function Dashboard({
         favKey(f.deviceId, f.code),
       );
       setFavourites(new Set(keys));
-      if (!appliedDefaultView.current) {
-        appliedDefaultView.current = true;
-        if (keys.length > 0) setView("favourites");
-      }
     } catch {
       /* ignore */
     }
@@ -375,22 +390,22 @@ export default function Dashboard({
         )}
         <div className="mb-5 inline-flex rounded-2xl border border-white/60 dark:border-white/10 bg-white/40 dark:bg-white/[0.05] p-1 backdrop-blur-xl">
           <button
-            onClick={() => setView("favourites")}
+            onClick={() => selectView("favourites")}
             className={tabCls(view === "favourites")}
           >
             Favourites
           </button>
-          <button onClick={() => setView("rooms")} className={tabCls(view === "rooms")}>
+          <button onClick={() => selectView("rooms")} className={tabCls(view === "rooms")}>
             Rooms
           </button>
           <button
-            onClick={() => setView("routines")}
+            onClick={() => selectView("routines")}
             className={tabCls(view === "routines")}
           >
             Routines
           </button>
           <button
-            onClick={() => setView("insights")}
+            onClick={() => selectView("insights")}
             className={tabCls(view === "insights")}
           >
             Insights
