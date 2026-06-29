@@ -396,6 +396,56 @@ async function withConnection<T>(
   );
 }
 
+// ── Keep-alive heartbeat ─────────────────────────────────────────────────────
+// Reads every device over the LAN so the slow cold-start work — UDP discovery,
+// protocol-version detection, and waking idle device radios — is done on a
+// cron's time instead of when a person opens the dashboard. Successful reads
+// populate ipCache + confirmedVersion, so the next human page load is fast.
+
+export interface HeartbeatDevice {
+  id: string;
+  name: string;
+  ok: boolean;
+}
+
+export interface HeartbeatResult {
+  total: number;
+  reachable: number;
+  unreachable: number;
+  /** True if a background LAN scan is currently running (devices self-healing). */
+  scanning: boolean;
+  devices: HeartbeatDevice[];
+}
+
+/**
+ * Read every catalog device in parallel (each device is internally serialized).
+ * A device that can't be reached just counts as unreachable — and triggers the
+ * usual background scan via getStatusLocal — so one dead device never fails the
+ * whole check.
+ */
+export async function heartbeat(): Promise<HeartbeatResult> {
+  const catalog = await readCatalog();
+  const devices = catalog?.devices ?? [];
+
+  const settled = await Promise.allSettled(
+    devices.map((d) => getStatusLocal(d)),
+  );
+  const result: HeartbeatDevice[] = settled.map((r, i) => ({
+    id: devices[i].id,
+    name: devices[i].cloudName,
+    ok: r.status === "fulfilled",
+  }));
+
+  const reachable = result.filter((d) => d.ok).length;
+  return {
+    total: devices.length,
+    reachable,
+    unreachable: devices.length - reachable,
+    scanning: isScanning(),
+    devices: result,
+  };
+}
+
 /** Read current status over the LAN, mapped to function codes. */
 export async function getStatusLocal(
   meta: CatalogDevice,
