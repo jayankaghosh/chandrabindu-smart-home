@@ -56,6 +56,7 @@ async function run(req: Request) {
   });
 
   return NextResponse.json({
+    timestamp: new Date(started).toISOString(),
     ok,
     status,
     total: r.total,
