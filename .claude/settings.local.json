@@ -103,7 +103,9 @@
       "Bash(node -e \"const p=require\\('./node_modules/react-native-webview/package.json'\\); console.log\\('main:',p.main,'| rn:',p['react-native'],'| version:',p.version\\)\")",
       "Bash(echo \"EXIT: $?\")",
       "Bash(node -e ' *)",
-      "Bash(rm -f data/favourites/admin.json && rmdir data/favourites 2>/dev/null; rm -f /tmp/shc_token.txt; echo \"cleaned test favourites + token\"; ls data/favourites 2>/dev/null || echo \"data/favourites removed \\(clean slate\\)\")"
+      "Bash(rm -f data/favourites/admin.json && rmdir data/favourites 2>/dev/null; rm -f /tmp/shc_token.txt; echo \"cleaned test favourites + token\"; ls data/favourites 2>/dev/null || echo \"data/favourites removed \\(clean slate\\)\")",
+      "Bash(node -e \"console.log\\(require\\('tuyapi/package.json'\\).version\\)\")",
+      "Bash(GATEWAY_PORT=4011 node -e ' *)"
     ]
   }
 }

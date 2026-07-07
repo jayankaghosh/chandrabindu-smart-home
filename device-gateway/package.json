@@ -1,0 +1,14 @@
+{
+  "name": "chandrabindu-device-gateway",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Owns the single local LAN connection to each Tuya device: real-time change events + status/command API for the app.",
+  "scripts": {
+    "start": "node src/index.js",
+    "watch": "node watch.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "tuyapi": "^7.7.1"
+  }
+}

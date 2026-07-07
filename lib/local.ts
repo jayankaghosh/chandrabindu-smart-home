@@ -16,6 +16,12 @@ import type {
   DeviceStatus,
 } from "./types";
 import { readCatalog, writeCatalog } from "./store";
+import {
+  gatewayConfigured,
+  gatewayGetStatus,
+  gatewayCommand,
+  GatewayUnavailable,
+} from "./gateway";
 
 const VERSIONS = ["3.4", "3.3", "3.5", "3.1"];
 const FIND_TIMEOUT = 7; // seconds
@@ -450,6 +456,15 @@ export async function heartbeat(): Promise<HeartbeatResult> {
 export async function getStatusLocal(
   meta: CatalogDevice,
 ): Promise<DeviceStatus[]> {
+  // Prefer the gateway (single connection owner, warm cache). Fall back to a
+  // direct read only if the gateway itself is unreachable.
+  if (gatewayConfigured()) {
+    try {
+      return await gatewayGetStatus(meta.id);
+    } catch (e) {
+      if (!(e instanceof GatewayUnavailable)) throw e;
+    }
+  }
   return withDevice(meta.id, () =>
     withConnection(meta, async (dev) => {
       const res = await withTimeout<any>(
@@ -514,6 +529,17 @@ export async function setCommandLocal(
   meta: CatalogDevice,
   commands: CommandRequest[],
 ): Promise<boolean> {
+  // Prefer the gateway (sends over its already-open connection). Fall back to a
+  // direct command only if the gateway itself is unreachable.
+  if (gatewayConfigured()) {
+    try {
+      await gatewayCommand(meta.id, commands);
+      return true;
+    } catch (e) {
+      if (!(e instanceof GatewayUnavailable)) throw e;
+    }
+  }
+
   const dpByCode = new Map(meta.functions.map((f) => [f.code, f.dpId]));
   const resolved = commands.map((c) => ({
     dpId: dpByCode.get(c.code)!,
