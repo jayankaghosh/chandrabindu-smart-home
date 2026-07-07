@@ -15,6 +15,7 @@ import {
 import type { Room } from "@/lib/types";
 import RoomCard, { type DeviceStatusState } from "./RoomCard";
 import Routines from "./Routines";
+import Automations from "./Automations";
 import Insights from "./Insights";
 import Favourites from "./Favourites";
 import { favKey } from "./favKey";
@@ -36,9 +37,9 @@ function greeting(): string {
   return "Good evening";
 }
 
-type View = "favourites" | "rooms" | "routines" | "insights";
+type View = "favourites" | "rooms" | "routines" | "automations" | "insights";
 const VIEW_KEY = "dashboard-view";
-const VIEWS: readonly View[] = ["favourites", "rooms", "routines", "insights"];
+const VIEWS: readonly View[] = ["favourites", "rooms", "routines", "automations", "insights"];
 
 function tabCls(active: boolean): string {
   return active
@@ -405,6 +406,12 @@ export default function Dashboard({
             Routines
           </button>
           <button
+            onClick={() => selectView("automations")}
+            className={tabCls(view === "automations")}
+          >
+            Automations
+          </button>
+          <button
             onClick={() => selectView("insights")}
             className={tabCls(view === "insights")}
           >
@@ -424,6 +431,7 @@ export default function Dashboard({
           />
         )}
         {view === "routines" && <Routines rooms={rooms ?? []} isAdmin={isAdmin} />}
+        {view === "automations" && <Automations rooms={rooms ?? []} isAdmin={isAdmin} />}
         {view === "insights" && <Insights isAdmin={isAdmin} />}
 
         {view === "rooms" && rooms && rooms.length > 0 && (

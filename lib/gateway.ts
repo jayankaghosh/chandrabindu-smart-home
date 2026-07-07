@@ -66,6 +66,42 @@ export async function gatewayGetStatus(id: string): Promise<DeviceStatus[]> {
   );
 }
 
+export interface GatewayHealth {
+  configured: boolean;
+  reachable: boolean;
+  total?: number;
+  connected?: number;
+}
+
+/** Non-secret gateway health for the settings UI. Never throws. */
+export async function gatewayHealth(): Promise<GatewayHealth> {
+  if (!gatewayConfigured()) return { configured: false, reachable: false };
+  try {
+    const res = await gwFetch("/health");
+    if (!res.ok) return { configured: true, reachable: false };
+    const d = await res.json();
+    return { configured: true, reachable: true, total: d.total, connected: d.connected };
+  } catch {
+    return { configured: true, reachable: false };
+  }
+}
+
+/** Ask the gateway to rebuild all device connections from a fresh catalog. */
+export async function gatewayReinit(): Promise<{ total: number; connected: number }> {
+  if (!gatewayConfigured()) {
+    throw new Error("The device gateway is not configured (GATEWAY_URL is not set).");
+  }
+  let res: Response;
+  try {
+    res = await gwFetch("/reinit", { method: "POST" });
+  } catch {
+    throw new Error("Couldn't reach the device gateway. Is it running?");
+  }
+  if (!res.ok) throw new Error(`Gateway returned ${res.status}`);
+  const d = await res.json().catch(() => ({}) as any);
+  return { total: d.total ?? 0, connected: d.connected ?? 0 };
+}
+
 /** Send commands via the gateway. Same fallback semantics as gatewayGetStatus. */
 export async function gatewayCommand(id: string, commands: CommandRequest[]): Promise<void> {
   if (!gatewayConfigured() || breakerOpen()) throw new GatewayUnavailable();

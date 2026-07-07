@@ -5,7 +5,7 @@
 
 const http = require("http");
 
-function createServer(gateway, { secret } = {}) {
+function createServer(gateway, { secret, onReinit } = {}) {
   const sseClients = new Set();
 
   // Fan out every change event to connected SSE clients.
@@ -34,6 +34,12 @@ function createServer(gateway, { secret } = {}) {
     }
 
     if (!authorized(req)) return json(res, 403, { error: "Forbidden" });
+
+    // Rebuild all device connections from a fresh catalog (admin re-init).
+    if (req.method === "POST" && url.pathname === "/reinit") {
+      const health = onReinit ? onReinit() : gateway.reinit();
+      return json(res, 200, { ok: true, ...health });
+    }
 
     // SSE stream of change events.
     if (url.pathname === "/events") {

@@ -15,12 +15,14 @@ import {
   Users,
   Lock,
   MonitorSmartphone,
+  Cpu,
 } from "lucide-react";
 import { REGIONS } from "@/lib/regions";
 import ManualDeviceForm from "./ManualDeviceForm";
 import UsersManager from "./UsersManager";
 import ChangePassword from "./ChangePassword";
 import DevicePairing from "./DevicePairing";
+import GatewayControl from "./GatewayControl";
 
 export default function Settings({ isAdmin }: { isAdmin: boolean }) {
   const [resyncing, setResyncing] = useState(false);
@@ -235,6 +237,11 @@ export default function Settings({ isAdmin }: { isAdmin: boolean }) {
             {/* Users */}
             <Section icon={<Users size={16} />} title="Users">
               <UsersManager />
+            </Section>
+
+            {/* Device gateway */}
+            <Section icon={<Cpu size={16} />} title="Device gateway">
+              <GatewayControl />
             </Section>
 
             {/* Home name */}

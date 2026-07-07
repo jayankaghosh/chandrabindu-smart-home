@@ -174,3 +174,31 @@ export interface InsightReport {
   /** Actionable routine suggestions, validated against the catalog. */
   recommendedRoutines?: RecommendedRoutine[];
 }
+
+// ── Automations (event-driven rules) ─────────────────────────────────────────
+// Evaluated by the device gateway on each real-time state change: when the IF
+// conditions match (edge-triggered), the THEN actions run.
+
+/** One IF clause: a device control equals a value. */
+export interface AutomationCondition {
+  deviceId: string;
+  code: string;
+  value: unknown; // boolean for switches, string for fan/enum, number for integer
+}
+
+/** One THEN action: set a device control to a value. */
+export interface AutomationAction {
+  deviceId: string;
+  code: string;
+  value: unknown;
+}
+
+export interface Automation {
+  id: string;
+  name: string;
+  enabled: boolean;
+  /** "all" = every condition must match (AND); "any" = at least one (OR). */
+  match: "all" | "any";
+  conditions: AutomationCondition[];
+  actions: AutomationAction[];
+}

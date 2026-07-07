@@ -12,7 +12,8 @@ class Gateway extends EventEmitter {
     this.connections = new Map(); // deviceId -> DeviceConnection
   }
 
-  start() {
+  // Build a fresh connection per catalog device. Reused by start() and reinit().
+  _spawn() {
     const devices = loadDevices();
     for (const meta of devices) {
       if (!meta.key || (meta.key || "").length !== 16) continue; // can't control without a valid key
@@ -22,7 +23,25 @@ class Gateway extends EventEmitter {
       this.connections.set(meta.id, conn);
       conn.start();
     }
+  }
+
+  start() {
+    this._spawn();
     console.log(`Gateway managing ${this.connections.size} device connection(s).`);
+  }
+
+  /**
+   * Tear down every connection cleanly and rebuild from a freshly-read catalog.
+   * Call after catalog.json changes (new IP/key/version, added/removed devices).
+   * The Gateway instance itself persists, so subscribers (rule engine, SSE) stay
+   * wired. Connections reconnect over the next few seconds.
+   */
+  reinit() {
+    this.stop(); // clean-disconnect all existing connections
+    this.connections.clear();
+    this._spawn();
+    console.log(`Gateway re-initialized: ${this.connections.size} device connection(s).`);
+    return this.health();
   }
 
   get(id) {
