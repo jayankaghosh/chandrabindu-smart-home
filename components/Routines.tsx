@@ -162,7 +162,7 @@ export default function Routines({
         </div>
       )}
 
-      <div className="grid items-start gap-4 [grid-template-columns:repeat(auto-fill,minmax(330px,1fr))]">
+      <div className="grid items-start gap-4 [grid-template-columns:repeat(auto-fill,minmax(min(330px,100%),1fr))]">
         {(routines ?? []).map((r) => (
           <div key={r.id} className="card flex h-[320px] flex-col p-5">
             <div className="mb-3 flex shrink-0 items-start justify-between gap-2">

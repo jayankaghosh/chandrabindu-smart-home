@@ -137,7 +137,7 @@ export default function Automations({ rooms, isAdmin }: { rooms: Room[]; isAdmin
         </div>
       )}
 
-      <div className="grid items-start gap-4 [grid-template-columns:repeat(auto-fill,minmax(340px,1fr))]">
+      <div className="grid items-start gap-4 [grid-template-columns:repeat(auto-fill,minmax(min(340px,100%),1fr))]">
         {(automations ?? []).map((a) => (
           <div
             key={a.id}

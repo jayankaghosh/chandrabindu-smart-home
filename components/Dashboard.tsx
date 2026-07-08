@@ -399,7 +399,7 @@ export default function Dashboard({
   const roomOptions = (rooms ?? []).map((r) => ({ id: r.id, name: r.name }));
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen overflow-x-hidden">
       <header className="sticky top-0 z-10 border-b border-white/40 bg-white/40 backdrop-blur-2xl backdrop-saturate-150 dark:border-white/10 dark:bg-white/[0.04]">
         <div className="mx-auto flex w-full max-w-[1700px] items-center justify-between gap-3 px-4 py-3.5 sm:px-6 lg:px-8">
           <div className="flex min-w-0 items-center gap-3">
@@ -467,34 +467,38 @@ export default function Dashboard({
             </p>
           </div>
         )}
-        <div className="mb-5 inline-flex rounded-2xl border border-white/60 dark:border-white/10 bg-white/40 dark:bg-white/[0.05] p-1 backdrop-blur-xl">
-          <button
-            onClick={() => selectView("favourites")}
-            className={tabCls(view === "favourites")}
-          >
-            Favourites
-          </button>
-          <button onClick={() => selectView("rooms")} className={tabCls(view === "rooms")}>
-            Rooms
-          </button>
-          <button
-            onClick={() => selectView("routines")}
-            className={tabCls(view === "routines")}
-          >
-            Routines
-          </button>
-          <button
-            onClick={() => selectView("automations")}
-            className={tabCls(view === "automations")}
-          >
-            Automations
-          </button>
-          <button
-            onClick={() => selectView("insights")}
-            className={tabCls(view === "insights")}
-          >
-            Insights
-          </button>
+        {/* Scrolls horizontally within the viewport on narrow screens instead of
+            widening the whole page (which clipped content on phones). */}
+        <div className="mb-5 -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="inline-flex rounded-2xl border border-white/60 dark:border-white/10 bg-white/40 dark:bg-white/[0.05] p-1 backdrop-blur-xl">
+            <button
+              onClick={() => selectView("favourites")}
+              className={tabCls(view === "favourites")}
+            >
+              Favourites
+            </button>
+            <button onClick={() => selectView("rooms")} className={tabCls(view === "rooms")}>
+              Rooms
+            </button>
+            <button
+              onClick={() => selectView("routines")}
+              className={tabCls(view === "routines")}
+            >
+              Routines
+            </button>
+            <button
+              onClick={() => selectView("automations")}
+              className={tabCls(view === "automations")}
+            >
+              Automations
+            </button>
+            <button
+              onClick={() => selectView("insights")}
+              className={tabCls(view === "insights")}
+            >
+              Insights
+            </button>
+          </div>
         </div>
 
         {view === "favourites" && (
@@ -572,7 +576,7 @@ export default function Dashboard({
         )}
 
         {view === "rooms" && rooms && rooms.length > 0 && (
-          <div className="grid items-start gap-5 [grid-template-columns:repeat(auto-fill,minmax(330px,1fr))]">
+          <div className="grid items-start gap-5 [grid-template-columns:repeat(auto-fill,minmax(min(330px,100%),1fr))]">
             {rooms.map((room, i) => (
               <RoomCard
                 key={room.id}

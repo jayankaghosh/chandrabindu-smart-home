@@ -111,7 +111,12 @@
       "Bash(echo \"launched pid $!\")",
       "Bash(pkill -f \"device-gateway/src/index.js\")",
       "Bash(node --check device-gateway/src/server.js)",
-      "Bash(echo \"pid $!\")"
+      "Bash(echo \"pid $!\")",
+      "Bash(echo \"gateway pid $!\")",
+      "Bash(GATEWAY_URL=http://127.0.0.1:4000 PORT=3001 nohup npm run start)",
+      "Bash(echo \"next start pid $!\")",
+      "Bash(pkill -f \"next start\")",
+      "Bash(pkill -f \"next-server\")"
     ]
   }
 }
