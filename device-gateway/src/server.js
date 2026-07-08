@@ -23,6 +23,19 @@ function createServer(gateway, { secret, onReinit } = {}) {
   gateway.on("change", (evt) => broadcast("change", evt));
   gateway.on("state", (evt) => broadcast("state", evt));
 
+  // Keepalive comment every 20s so idle SSE connections aren't dropped by a
+  // reverse proxy's read timeout (nginx default 60s). Comments (":" lines) are
+  // ignored by EventSource but keep the socket warm.
+  setInterval(() => {
+    for (const res of sseClients) {
+      try {
+        res.write(": ping\n\n");
+      } catch {
+        /* cleaned up on 'close' */
+      }
+    }
+  }, 20000).unref?.();
+
   function authorized(req) {
     if (!secret) return true;
     return (req.headers["x-gateway-secret"] || "") === secret;

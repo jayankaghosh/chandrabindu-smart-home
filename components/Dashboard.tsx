@@ -86,6 +86,8 @@ export default function Dashboard({
   // True while the live SSE stream is connected (gateway present). When live,
   // device state is pushed in real time and interval polling is switched off.
   const [live, setLive] = useState(false);
+  const liveRef = useRef(live);
+  liveRef.current = live;
   // The user's starred controls, keyed `${deviceId}::${code}`.
   const [favourites, setFavourites] = useState<Set<string>>(new Set());
   // Computed on the client only — depends on the local clock, so rendering it
@@ -355,7 +357,9 @@ export default function Dashboard({
           body: JSON.stringify({ commands: [{ code, value }] }),
         });
         if (!res.ok) throw new Error();
-        setTimeout(() => fetchDeviceStatus(deviceId), 600);
+        // When live, the SSE `change` event confirms the new state — no need to
+        // re-fetch. Only poll-confirm in the polling fallback.
+        if (!liveRef.current) setTimeout(() => fetchDeviceStatus(deviceId), 600);
       } catch {
         setStatusByDevice((prev) => {
           const cur = prev[deviceId];

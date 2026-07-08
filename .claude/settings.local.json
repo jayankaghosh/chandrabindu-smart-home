@@ -109,7 +109,9 @@
       "Bash(curl -s --max-time 2 http://127.0.0.1:4000/health)",
       "Bash(GATEWAY_PORT=4000 nohup node device-gateway/src/index.js)",
       "Bash(echo \"launched pid $!\")",
-      "Bash(pkill -f \"device-gateway/src/index.js\")"
+      "Bash(pkill -f \"device-gateway/src/index.js\")",
+      "Bash(node --check device-gateway/src/server.js)",
+      "Bash(echo \"pid $!\")"
     ]
   }
 }
