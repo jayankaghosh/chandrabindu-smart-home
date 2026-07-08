@@ -57,6 +57,7 @@ export default function RoomCard({
   statusByDevice,
   rooms,
   favourites,
+  live,
   onCommand,
   onPoll,
   onToggleFavourite,
@@ -68,6 +69,7 @@ export default function RoomCard({
   statusByDevice: Record<string, DeviceStatusState>;
   rooms: { id: string; name: string }[];
   favourites: Set<string>;
+  live: boolean;
   onCommand: (deviceId: string, code: string, value: unknown) => void;
   onPoll: (deviceId: string) => void;
   onToggleFavourite: (deviceId: string, code: string) => void;
@@ -105,6 +107,7 @@ export default function RoomCard({
       statusByDevice={statusByDevice}
       rooms={rooms}
       favourites={favourites}
+      live={live}
       onCommand={onCommand}
       onPoll={onPoll}
       onToggleFavourite={onToggleFavourite}
@@ -123,6 +126,7 @@ function RoomCardInner({
   statusByDevice,
   rooms,
   favourites,
+  live,
   onCommand,
   onPoll,
   onToggleFavourite,
@@ -137,6 +141,7 @@ function RoomCardInner({
   statusByDevice: Record<string, DeviceStatusState>;
   rooms: { id: string; name: string }[];
   favourites: Set<string>;
+  live: boolean;
   onCommand: (deviceId: string, code: string, value: unknown) => void;
   onPoll: (deviceId: string) => void;
   onToggleFavourite: (deviceId: string, code: string) => void;
@@ -253,6 +258,7 @@ function RoomCardInner({
               state={statusByDevice[device.id]}
               rooms={rooms}
               favourites={favourites}
+              live={live}
               onCommand={onCommand}
               onPoll={onPoll}
               onToggleFavourite={onToggleFavourite}
@@ -556,6 +562,7 @@ function DeviceGroup({
   state,
   rooms,
   favourites,
+  live,
   onCommand,
   onPoll,
   onToggleFavourite,
@@ -566,6 +573,7 @@ function DeviceGroup({
   state?: DeviceStatusState;
   rooms: { id: string; name: string }[];
   favourites: Set<string>;
+  live: boolean;
   onCommand: (deviceId: string, code: string, value: unknown) => void;
   onPoll: (deviceId: string) => void;
   onToggleFavourite: (deviceId: string, code: string) => void;
@@ -573,9 +581,11 @@ function DeviceGroup({
 }) {
   const [open, toggle] = usePersistedOpen(`dev-open:${device.id}`);
 
-  // Poll this device's status ONLY while it's expanded and the tab is visible.
+  // Poll this device's status ONLY while it's expanded and the tab is visible —
+  // and only when NOT live. When the SSE stream is connected, state arrives via
+  // the initial snapshot + real-time push, so no polling is needed.
   useEffect(() => {
-    if (!open) return;
+    if (!open || live) return;
     const id = device.id;
     const tick = () => {
       if (document.visibilityState === "visible") onPoll(id);
@@ -590,7 +600,7 @@ function DeviceGroup({
       clearInterval(timer);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [open, device.id, onPoll]);
+  }, [open, device.id, onPoll, live]);
   const [editing, setEditing] = useState(false);
   const [draftName, setDraftName] = useState(device.name);
   const [draftRoom, setDraftRoom] = useState(device.roomId);

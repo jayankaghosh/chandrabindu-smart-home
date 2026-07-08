@@ -69,6 +69,16 @@ class Gateway extends EventEmitter {
     return conn.command(commands);
   }
 
+  // Current cached status of every device — sent to a new SSE subscriber so it
+  // has full state immediately, then live `change` events keep it current.
+  snapshot() {
+    const devices = [];
+    for (const conn of this.connections.values()) {
+      devices.push({ id: conn.meta.id, connected: conn.connected, status: conn.status });
+    }
+    return devices;
+  }
+
   health() {
     const devices = [];
     let connected = 0;

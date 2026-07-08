@@ -16,6 +16,7 @@ export default function Favourites({
   favourites,
   statusByDevice,
   isAdmin,
+  live,
   onCommand,
   onPoll,
   onToggleFavourite,
@@ -24,6 +25,7 @@ export default function Favourites({
   favourites: Set<string>;
   statusByDevice: Record<string, DeviceStatusState>;
   isAdmin: boolean;
+  live: boolean;
   onCommand: (deviceId: string, code: string, value: unknown) => void;
   onPoll: (deviceId: string) => void;
   onToggleFavourite: (deviceId: string, code: string) => void;
@@ -65,7 +67,7 @@ export default function Favourites({
     [entries],
   );
   useEffect(() => {
-    if (deviceIds.length === 0) return;
+    if (deviceIds.length === 0 || live) return; // live: state pushed via SSE
     const tick = () => {
       if (document.visibilityState === "visible") deviceIds.forEach(onPoll);
     };
@@ -76,7 +78,7 @@ export default function Favourites({
       clearInterval(timer);
       document.removeEventListener("visibilitychange", tick);
     };
-  }, [deviceIds, onPoll]);
+  }, [deviceIds, onPoll, live]);
 
   if (entries.length === 0) {
     return (

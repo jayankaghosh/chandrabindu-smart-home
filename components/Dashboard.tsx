@@ -83,6 +83,9 @@ export default function Dashboard({
     }
   }, []);
   const [aiAvailable, setAiAvailable] = useState(false);
+  // True while the live SSE stream is connected (gateway present). When live,
+  // device state is pushed in real time and interval polling is switched off.
+  const [live, setLive] = useState(false);
   // The user's starred controls, keyed `${deviceId}::${code}`.
   const [favourites, setFavourites] = useState<Set<string>>(new Set());
   // Computed on the client only — depends on the local clock, so rendering it
@@ -180,6 +183,74 @@ export default function Dashboard({
     loadFavourites();
   }, [loadFavourites]);
 
+  // Live state stream (SSE) — when the gateway is present, device state is
+  // pushed here in real time, so a change by ANY user/source reflects on every
+  // open dashboard immediately. Falls back to polling when unavailable.
+  useEffect(() => {
+    let es: EventSource | null = null;
+    let closed = false;
+    let retry: ReturnType<typeof setTimeout> | null = null;
+
+    const applySnapshot = (devices: { id: string; connected: boolean; status: Record<string, unknown> }[]) => {
+      setStatusByDevice((prev) => {
+        const next = { ...prev };
+        for (const d of devices) {
+          next[d.id] = { reachable: !!d.connected, scanning: false, values: d.status ?? {} };
+        }
+        return next;
+      });
+    };
+    const applyChange = (e: { deviceId: string; code: string; value: unknown }) => {
+      setStatusByDevice((prev) => {
+        const cur = prev[e.deviceId] ?? { reachable: true, scanning: false, values: {} };
+        return { ...prev, [e.deviceId]: { ...cur, reachable: true, values: { ...cur.values, [e.code]: e.value } } };
+      });
+    };
+    const applyState = (e: { deviceId: string; connected: boolean }) => {
+      setStatusByDevice((prev) => {
+        const cur = prev[e.deviceId] ?? { reachable: null, scanning: false, values: {} };
+        return { ...prev, [e.deviceId]: { ...cur, reachable: !!e.connected } };
+      });
+    };
+    const parse = (e: Event) => {
+      try {
+        return JSON.parse((e as MessageEvent).data);
+      } catch {
+        return null;
+      }
+    };
+
+    function connect() {
+      es = new EventSource("/api/events");
+      es.addEventListener("snapshot", (e) => {
+        setLive(true);
+        const d = parse(e);
+        if (d?.devices) applySnapshot(d.devices);
+      });
+      es.addEventListener("change", (e) => {
+        const d = parse(e);
+        if (d) applyChange(d);
+      });
+      es.addEventListener("state", (e) => {
+        const d = parse(e);
+        if (d) applyState(d);
+      });
+      es.onerror = () => {
+        setLive(false);
+        es?.close();
+        // Reconnect (covers a gateway restart). When there's no gateway the
+        // endpoint returns 204 and this simply retries quietly in the background.
+        if (!closed) retry = setTimeout(connect, 8000);
+      };
+    }
+    connect();
+    return () => {
+      closed = true;
+      if (retry) clearTimeout(retry);
+      es?.close();
+    };
+  }, []);
+
   // Optimistically star/unstar a control, then persist. `next` is computed from
   // the latest favourites (via a ref — toggleFavourite is memoized) BEFORE the
   // state update, so the updater stays pure (safe under StrictMode double-invoke).
@@ -228,11 +299,14 @@ export default function Dashboard({
   useEffect(() => {
     if (!isAdmin) return;
     fetchProtected();
+    // When live, SSE keeps device states fresh (protectedOff reads statusByDevice),
+    // so no polling is needed — the list of protected controls itself rarely changes.
+    if (live) return;
     const t = setInterval(() => {
       if (document.visibilityState === "visible") fetchProtected();
     }, 30_000);
     return () => clearInterval(t);
-  }, [isAdmin, fetchProtected]);
+  }, [isAdmin, fetchProtected, live]);
 
   // Which protected controls are OFF — prefer the live status the dashboard
   // already has (updates instantly on toggle/poll), falling back to the last
@@ -425,6 +499,7 @@ export default function Dashboard({
             favourites={favourites}
             statusByDevice={statusByDevice}
             isAdmin={isAdmin}
+            live={live}
             onCommand={sendCommand}
             onPoll={fetchDeviceStatus}
             onToggleFavourite={toggleFavourite}
@@ -503,6 +578,7 @@ export default function Dashboard({
                 statusByDevice={statusByDevice}
                 rooms={roomOptions}
                 favourites={favourites}
+                live={live}
                 onCommand={sendCommand}
                 onPoll={fetchDeviceStatus}
                 onToggleFavourite={toggleFavourite}

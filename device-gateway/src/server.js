@@ -8,11 +8,20 @@ const http = require("http");
 function createServer(gateway, { secret, onReinit } = {}) {
   const sseClients = new Set();
 
-  // Fan out every change event to connected SSE clients.
-  gateway.on("change", (evt) => {
-    const line = `event: change\ndata: ${JSON.stringify(evt)}\n\n`;
-    for (const res of sseClients) res.write(line);
-  });
+  function broadcast(event, payload) {
+    const line = `event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`;
+    for (const res of sseClients) {
+      try {
+        res.write(line);
+      } catch {
+        /* client went away; cleaned up on 'close' */
+      }
+    }
+  }
+
+  // Fan out value changes AND connect/disconnect state to all SSE clients.
+  gateway.on("change", (evt) => broadcast("change", evt));
+  gateway.on("state", (evt) => broadcast("state", evt));
 
   function authorized(req) {
     if (!secret) return true;
@@ -48,7 +57,8 @@ function createServer(gateway, { secret, onReinit } = {}) {
         "cache-control": "no-cache",
         connection: "keep-alive",
       });
-      res.write(`event: ready\ndata: {}\n\n`);
+      // Send full current state immediately, then stream live updates.
+      res.write(`event: snapshot\ndata: ${JSON.stringify({ devices: gateway.snapshot() })}\n\n`);
       sseClients.add(res);
       req.on("close", () => sseClients.delete(res));
       return;

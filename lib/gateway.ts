@@ -66,6 +66,24 @@ export async function gatewayGetStatus(id: string): Promise<DeviceStatus[]> {
   );
 }
 
+/**
+ * Open the gateway's long-lived SSE event stream. Uses the caller's AbortSignal
+ * (NOT the short request timeout) so the stream stays open until the browser
+ * disconnects. Returns null if the gateway isn't configured/reachable.
+ */
+export async function openGatewayEvents(signal: AbortSignal): Promise<Response | null> {
+  if (!gatewayConfigured()) return null;
+  const headers: Record<string, string> = { accept: "text/event-stream" };
+  if (GATEWAY_SECRET) headers["x-gateway-secret"] = GATEWAY_SECRET;
+  try {
+    const res = await fetch(`${GATEWAY_URL}/events`, { headers, signal });
+    if (!res.ok || !res.body) return null;
+    return res;
+  } catch {
+    return null;
+  }
+}
+
 export interface GatewayHealth {
   configured: boolean;
   reachable: boolean;

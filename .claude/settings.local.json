@@ -106,7 +106,10 @@
       "Bash(rm -f data/favourites/admin.json && rmdir data/favourites 2>/dev/null; rm -f /tmp/shc_token.txt; echo \"cleaned test favourites + token\"; ls data/favourites 2>/dev/null || echo \"data/favourites removed \\(clean slate\\)\")",
       "Bash(node -e \"console.log\\(require\\('tuyapi/package.json'\\).version\\)\")",
       "Bash(GATEWAY_PORT=4011 node -e ' *)",
-      "Bash(curl -s --max-time 2 http://127.0.0.1:4000/health)"
+      "Bash(curl -s --max-time 2 http://127.0.0.1:4000/health)",
+      "Bash(GATEWAY_PORT=4000 nohup node device-gateway/src/index.js)",
+      "Bash(echo \"launched pid $!\")",
+      "Bash(pkill -f \"device-gateway/src/index.js\")"
     ]
   }
 }
