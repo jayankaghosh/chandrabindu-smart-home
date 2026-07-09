@@ -7,11 +7,12 @@
 export type UiTheme = "classic" | "sleek";
 const KEY = "ui-theme";
 
+// Sleek is the default; Classic only when explicitly selected on this device.
 export function readUiTheme(): UiTheme {
   try {
-    return localStorage.getItem(KEY) === "sleek" ? "sleek" : "classic";
+    return localStorage.getItem(KEY) === "classic" ? "classic" : "sleek";
   } catch {
-    return "classic";
+    return "sleek";
   }
 }
 
