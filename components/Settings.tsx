@@ -16,6 +16,7 @@ import {
   Lock,
   MonitorSmartphone,
   Cpu,
+  Palette,
 } from "lucide-react";
 import { REGIONS } from "@/lib/regions";
 import ManualDeviceForm from "./ManualDeviceForm";
@@ -23,6 +24,7 @@ import UsersManager from "./UsersManager";
 import ChangePassword from "./ChangePassword";
 import DevicePairing from "./DevicePairing";
 import GatewayControl from "./GatewayControl";
+import ThemeSelect from "./ThemeSelect";
 
 export default function Settings({ isAdmin }: { isAdmin: boolean }) {
   const [resyncing, setResyncing] = useState(false);
@@ -225,6 +227,11 @@ export default function Settings({ isAdmin }: { isAdmin: boolean }) {
         {/* Change password — available to every signed-in user */}
         <Section icon={<Lock size={16} />} title="Change password">
           <ChangePassword minLength={isAdmin ? 4 : 6} />
+        </Section>
+
+        {/* Appearance / theme — available to every signed-in user, per device */}
+        <Section icon={<Palette size={16} />} title="Appearance">
+          <ThemeSelect />
         </Section>
 
         {/* Link an external device — available to every signed-in user */}

@@ -116,7 +116,10 @@
       "Bash(GATEWAY_URL=http://127.0.0.1:4000 PORT=3001 nohup npm run start)",
       "Bash(echo \"next start pid $!\")",
       "Bash(pkill -f \"next start\")",
-      "Bash(pkill -f \"next-server\")"
+      "Bash(pkill -f \"next-server\")",
+      "WebSearch",
+      "Bash(node -e \"console.log\\('framer-motion', require\\('framer-motion/package.json'\\).version\\)\")",
+      "Bash(echo \"=== EXIT: $? ===\")"
     ]
   }
 }

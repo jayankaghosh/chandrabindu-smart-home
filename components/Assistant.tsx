@@ -46,7 +46,7 @@ interface Pending {
   routines: Routine[];
 }
 
-export default function Assistant({ available }: { available: boolean }) {
+export default function Assistant({ available, big }: { available: boolean; big?: boolean }) {
   const [open, setOpen] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [messages, setMessages] = useState<Msg[]>([]);
@@ -176,9 +176,11 @@ export default function Assistant({ available }: { available: boolean }) {
         <button
           onClick={() => setOpen(true)}
           title="Open assistant"
-          className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-brand-500 text-white shadow-[0_12px_30px_-6px_rgba(79,70,229,0.6)] transition hover:scale-105"
+          className={`fixed bottom-6 right-6 z-40 flex items-center justify-center rounded-full bg-brand-500 text-white shadow-[0_12px_30px_-6px_rgba(79,70,229,0.6)] transition hover:scale-105 dark:bg-white dark:text-slate-900 ${
+            big ? "h-16 w-16" : "h-14 w-14"
+          }`}
         >
-          <Bot size={24} />
+          <Bot size={big ? 28 : 24} />
         </button>
       )}
 
