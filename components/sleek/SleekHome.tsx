@@ -1,11 +1,11 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Star, LayoutGrid, Play, Zap, Sparkles, Lightbulb, WifiOff } from "lucide-react";
+import { Star, LayoutGrid, Play, Zap, Sparkles, Lightbulb, WifiOff, Mic } from "lucide-react";
 import NavTile from "./NavTile";
 import { gridContainer } from "./motion";
 
-export type Section = "favourites" | "rooms" | "routines" | "automations" | "insights";
+export type Section = "favourites" | "rooms" | "routines" | "automations" | "insights" | "voice";
 
 const SECTIONS: { key: Section; title: string; subtitle: string; icon: any; accent: string }[] = [
   { key: "favourites", title: "Favourites", subtitle: "Your starred switches", icon: Star, accent: "from-amber-400 to-orange-500" },
@@ -13,6 +13,7 @@ const SECTIONS: { key: Section; title: string; subtitle: string; icon: any; acce
   { key: "routines", title: "Routines", subtitle: "Run a scene", icon: Play, accent: "from-fuchsia-500 to-pink-500" },
   { key: "automations", title: "Automations", subtitle: "If this, then that", icon: Zap, accent: "from-emerald-400 to-teal-500" },
   { key: "insights", title: "Insights", subtitle: "Your home at a glance", icon: Sparkles, accent: "from-sky-400 to-cyan-500" },
+  { key: "voice", title: "Voice", subtitle: "Talk to your home", icon: Mic, accent: "from-violet-500 to-purple-600" },
 ];
 
 export default function SleekHome({
