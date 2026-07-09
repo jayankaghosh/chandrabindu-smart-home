@@ -119,7 +119,8 @@
       "Bash(pkill -f \"next-server\")",
       "WebSearch",
       "Bash(node -e \"console.log\\('framer-motion', require\\('framer-motion/package.json'\\).version\\)\")",
-      "Bash(echo \"=== EXIT: $? ===\")"
+      "Bash(echo \"=== EXIT: $? ===\")",
+      "Bash(echo \"tsc: $?\")"
     ]
   }
 }

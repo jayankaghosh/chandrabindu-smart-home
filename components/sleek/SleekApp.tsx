@@ -26,6 +26,23 @@ type Screen =
   | { k: "automations" }
   | { k: "insights" };
 
+const NAV_KEY = "sleek-nav";
+const SCREEN_KINDS = ["home", "favourites", "rooms", "room", "routines", "automations", "insights"];
+
+// Restore the last-viewed navigation stack (so a refresh lands where you were).
+function loadNav(): Screen[] {
+  try {
+    const arr = JSON.parse(localStorage.getItem(NAV_KEY) || "");
+    if (!Array.isArray(arr) || arr.length === 0) return [{ k: "home" }];
+    const valid = arr.filter(
+      (s: any) => s && SCREEN_KINDS.includes(s.k) && (s.k !== "room" || typeof s.roomId === "string"),
+    );
+    return valid.length ? (valid as Screen[]) : [{ k: "home" }];
+  } catch {
+    return [{ k: "home" }];
+  }
+}
+
 function greeting(): string {
   const h = new Date().getHours();
   if (h < 12) return "Good morning";
@@ -39,10 +56,26 @@ export default function SleekApp({ role, username }: { role: "admin" | "user"; u
   const data = useHomeData();
   const { rooms, statusByDevice, favourites } = data;
 
-  const [stack, setStack] = useState<Screen[]>([{ k: "home" }]);
+  const [stack, setStack] = useState<Screen[]>(loadNav);
   const [dir, setDir] = useState(1);
   const screen = stack[stack.length - 1];
   const atHome = screen.k === "home";
+
+  // Persist the nav stack so a refresh returns to the same screen.
+  useEffect(() => {
+    try {
+      localStorage.setItem(NAV_KEY, JSON.stringify(stack));
+    } catch {
+      /* ignore */
+    }
+  }, [stack]);
+
+  // If a restored room no longer exists, drop that screen gracefully.
+  useEffect(() => {
+    if (screen.k === "room" && rooms && !rooms.find((r) => r.id === screen.roomId)) {
+      setStack((st) => (st.length > 1 ? st.slice(0, -1) : [{ k: "home" }]));
+    }
+  }, [screen, rooms]);
 
   const [greet, setGreet] = useState("");
   useEffect(() => setGreet(greeting()), []);
