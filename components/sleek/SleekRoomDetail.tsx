@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Lock, LockOpen, Loader2 } from "lucide-react";
+import { Lock, LockOpen, Loader2, Bluetooth } from "lucide-react";
 import type { Room } from "@/lib/types";
 import type { DeviceStatusState } from "../useHomeData";
 import { favKey } from "../favKey";
@@ -43,6 +43,24 @@ export default function SleekRoomDetail({
         const controls = device.functions.filter((f) => CONTROLLABLE.includes(f.type));
         const values = statusByDevice[device.id]?.values ?? {};
         const reachable = statusByDevice[device.id]?.reachable ?? null;
+        if (device.bluetooth) {
+          return (
+            <div key={device.id}>
+              <p className="mb-2.5 px-1 text-[13px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                {device.name}
+              </p>
+              <div className="tile-off flex items-center gap-3 rounded-[26px] p-5 text-slate-500 dark:text-slate-400">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-sky-500/15 text-sky-500 dark:bg-white/10">
+                  <Bluetooth size={22} />
+                </span>
+                <div>
+                  <p className="font-semibold text-slate-700 dark:text-slate-200">Bluetooth device</p>
+                  <p className="text-sm">Can’t be controlled from here — use the Smart Life app.</p>
+                </div>
+              </div>
+            </div>
+          );
+        }
         return (
           <div key={device.id}>
             <p className="mb-2.5 px-1 text-[13px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">

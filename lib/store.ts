@@ -193,6 +193,9 @@ export async function getModel(): Promise<{
       category: d.category,
       online: d.online,
       roomId: byId.has(roomId) ? roomId : UNASSIGNED_ID,
+      // Bluetooth-only devices can't be controlled over the LAN. Detected from
+      // the stable cloud name (Tuya names them "BLE …"), not the display name.
+      bluetooth: /\b(ble|bluetooth)\b/i.test(d.cloudName),
       functions: d.functions.map((f) => ({
         code: f.code,
         name: overrides.controlName[d.id]?.[f.code] ?? f.name,

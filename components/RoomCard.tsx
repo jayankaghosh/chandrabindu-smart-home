@@ -15,6 +15,7 @@ import {
   Trash2,
   Shield,
   ShieldAlert,
+  Bluetooth,
 } from "lucide-react";
 import type { Room, UiDevice } from "@/lib/types";
 import ControlTile from "./ControlTile";
@@ -810,7 +811,12 @@ function DeviceGroup({
                 <Shield size={12} /> Protected controls can only be changed by an admin.
               </p>
             )}
-            {controllable.length === 0 ? (
+            {device.bluetooth ? (
+              <div className="flex items-center gap-2.5 rounded-xl border border-white/45 bg-white/25 px-3 py-2.5 text-xs text-slate-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-400">
+                <Bluetooth size={15} className="shrink-0 text-sky-500" />
+                <span>Bluetooth device — can’t be controlled from here. Use the Smart Life app.</span>
+              </div>
+            ) : controllable.length === 0 ? (
               <p className="px-1 pb-1 text-xs text-slate-500 dark:text-slate-400">
                 No controllable actions.
               </p>

@@ -76,6 +76,8 @@ export interface UiDevice {
   category: string;
   online: boolean;
   roomId: string;
+  /** True for Bluetooth-only devices, which can't be controlled over the LAN. */
+  bluetooth?: boolean;
   functions: DeviceFunction[];
 }
 

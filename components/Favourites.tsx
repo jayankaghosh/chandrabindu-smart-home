@@ -43,6 +43,7 @@ export default function Favourites({
     for (const room of rooms) {
       const accessible = !room.locked || room.unlocked === true;
       for (const device of room.devices) {
+        if (device.bluetooth) continue; // not locally controllable
         for (const fn of device.functions) {
           if (!CONTROLLABLE.includes(fn.type)) continue;
           const key = favKey(device.id, fn.code);
