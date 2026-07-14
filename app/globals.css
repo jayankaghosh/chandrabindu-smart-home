@@ -28,7 +28,10 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/* Background photo — blurred so the whole app reads like frosted glass. */
+/* Background photo — blurred so the whole app reads like frosted glass.
+   Base rule uses the shared /background.jpg. The per-theme rules below layer a
+   theme-specific image ON TOP of it; if that file is missing (404), the layer
+   is simply empty and /background.jpg shows through — automatic fallback. */
 body::before {
   content: "";
   position: fixed;
@@ -42,6 +45,18 @@ body::before {
   background-repeat: no-repeat;
   filter: blur(22px) saturate(1.15);
   transform: scale(1.12);
+}
+html[data-ui="classic"] body::before {
+  background-image:
+    linear-gradient(135deg, rgba(99, 102, 241, 0.25), rgba(56, 189, 248, 0.2)),
+    url("/background/classic.jpg"),
+    url("/background.jpg");
+}
+html[data-ui="sleek"] body::before {
+  background-image:
+    linear-gradient(135deg, rgba(99, 102, 241, 0.25), rgba(56, 189, 248, 0.2)),
+    url("/background/sleek.jpg"),
+    url("/background.jpg");
 }
 
 /* Translucent frost veil for legibility over any image. */

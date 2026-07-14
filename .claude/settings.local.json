@@ -120,7 +120,9 @@
       "WebSearch",
       "Bash(node -e \"console.log\\('framer-motion', require\\('framer-motion/package.json'\\).version\\)\")",
       "Bash(echo \"=== EXIT: $? ===\")",
-      "Bash(echo \"tsc: $?\")"
+      "Bash(echo \"tsc: $?\")",
+      "Bash(mkdir -p background)",
+      "Bash(cp background.jpg background/sleek.jpg)"
     ]
   }
 }
