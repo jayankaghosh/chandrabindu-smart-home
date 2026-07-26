@@ -122,7 +122,10 @@
       "Bash(echo \"=== EXIT: $? ===\")",
       "Bash(echo \"tsc: $?\")",
       "Bash(mkdir -p background)",
-      "Bash(cp background.jpg background/sleek.jpg)"
+      "Bash(cp background.jpg background/sleek.jpg)",
+      "Bash(ps -p 53961 -o pid,ppid,command)",
+      "Bash(lsof -ti:3000)",
+      "Bash(echo \"build EXIT: $?\")"
     ]
   }
 }

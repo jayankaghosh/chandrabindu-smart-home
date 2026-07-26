@@ -5,7 +5,7 @@
 // Sleek theme; the Classic Dashboard has its own equivalent copy. Both talk to
 // the same APIs + SSE, so they stay in sync at runtime regardless.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Room } from "@/lib/types";
 import { favKey } from "./favKey";
 
@@ -13,6 +13,14 @@ export interface DeviceStatusState {
   reachable: boolean | null;
   scanning: boolean;
   values: Record<string, unknown>;
+}
+
+export interface ProtectedControl {
+  deviceId: string;
+  code: string;
+  deviceName: string;
+  controlName: string;
+  state: string; // on | off | unreachable | na | unknown
 }
 
 export function useHomeData() {
@@ -144,6 +152,26 @@ export function useHomeData() {
     };
   }, [rooms, live, fetchDeviceStatus]);
 
+  // Protected controls (admin only — non-admins get 403 → empty). Used to warn
+  // when a control that should stay on is off.
+  const [protectedControls, setProtectedControls] = useState<ProtectedControl[]>([]);
+  useEffect(() => {
+    fetch("/api/protected")
+      .then((r) => (r.ok ? r.json() : { controls: [] }))
+      .then((d) => setProtectedControls(d.controls ?? []))
+      .catch(() => {});
+  }, []);
+  const protectedOff = useMemo(
+    () =>
+      protectedControls.filter((c) => {
+        if (c.state === "na") return false;
+        const live = statusByDevice[c.deviceId]?.values;
+        if (live && c.code in live) return live[c.code] !== true;
+        return c.state === "off";
+      }),
+    [protectedControls, statusByDevice],
+  );
+
   // Favourites
   const loadFavourites = useCallback(async () => {
     try {
@@ -227,6 +255,7 @@ export function useHomeData() {
     toggleFavourite,
     sendCommand,
     fetchDeviceStatus,
+    protectedOff,
     reload: load,
   };
 }

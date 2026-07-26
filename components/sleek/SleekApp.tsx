@@ -16,6 +16,7 @@ import SleekFavourites from "./SleekFavourites";
 import SleekRoutines from "./SleekRoutines";
 import SleekAutomations from "./SleekAutomations";
 import SleekVoice from "./SleekVoice";
+import SleekProtectedAlert from "./SleekProtectedAlert";
 import { screenTransition, screenVariants } from "./motion";
 
 type Screen =
@@ -81,6 +82,10 @@ export default function SleekApp({ role, username }: { role: "admin" | "user"; u
 
   const [greet, setGreet] = useState("");
   useEffect(() => setGreet(greeting()), []);
+
+  // Protected-off popup: shown on load whenever a protected control is off,
+  // dismissible until the next load (in-memory flag, resets on refresh).
+  const [protDismissed, setProtDismissed] = useState(false);
 
   const go = (s: Screen) => {
     setDir(1);
@@ -232,6 +237,14 @@ export default function SleekApp({ role, username }: { role: "admin" | "user"; u
       </main>
 
       <Assistant available={data.aiAvailable} big />
+
+      {data.protectedOff.length > 0 && !protDismissed && (
+        <SleekProtectedAlert
+          items={data.protectedOff}
+          onTurnOn={(deviceId, code) => data.sendCommand(deviceId, code, true)}
+          onDismiss={() => setProtDismissed(true)}
+        />
+      )}
     </div>
   );
 }
