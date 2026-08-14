@@ -9,6 +9,7 @@ try {
 const { Gateway } = require("./gateway");
 const { createServer } = require("./server");
 const { RuleEngine } = require("./rules");
+const { ProtectedGuard } = require("./protect");
 
 const PORT = Number(process.env.GATEWAY_PORT || 4000);
 const HOST = process.env.GATEWAY_HOST || "127.0.0.1"; // localhost-only by default
@@ -20,6 +21,10 @@ gateway.start();
 // Automation rule engine: evaluates data/automations.json on every state change.
 const rules = new RuleEngine(gateway);
 rules.start();
+
+// Protected-control guard: turns a protected control back ON if it goes off.
+const guard = new ProtectedGuard(gateway);
+guard.start();
 
 // Log changes to stdout so `journalctl`/pm2 logs show live activity.
 gateway.on("change", (e) => {

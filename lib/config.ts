@@ -44,8 +44,13 @@ interface AppConfig {
   users?: StoredUser[];
   /** Per-room password locks, keyed by roomId. */
   roomLocks?: Record<string, RoomLock>;
-  /** Protected controls (critical — never auto-toggled): deviceId -> control codes. */
+  /** Protected controls (critical — should stay on): deviceId -> control codes. */
   protectedControls?: Record<string, string[]>;
+  /**
+   * When true, the gateway turns a protected control back ON the moment it goes
+   * off (physically, from SmartLife, anywhere). Superadmin toggle; default off.
+   */
+  autoRestoreProtected?: boolean;
   tuya?: TuyaCreds;
   openrouter?: { apiKey: string; model: string; enabled?: boolean };
 }
@@ -110,6 +115,7 @@ export function setPassword(password: string): void {
     users: existing?.users,
     roomLocks: existing?.roomLocks,
     protectedControls: existing?.protectedControls,
+    autoRestoreProtected: existing?.autoRestoreProtected,
     tuya: existing?.tuya,
     openrouter: existing?.openrouter,
   };
@@ -323,6 +329,18 @@ export function listProtectedControls(): { deviceId: string; code: string }[] {
     for (const code of codes) out.push({ deviceId, code });
   }
   return out;
+}
+
+/** Whether the gateway auto-restores protected controls when they go off. */
+export function getAutoRestoreProtected(): boolean {
+  return read()?.autoRestoreProtected === true;
+}
+
+/** Enable/disable auto-restore of protected controls (superadmin). */
+export function setAutoRestoreProtected(enabled: boolean): void {
+  const config = read();
+  if (!config) throw new Error("App is not onboarded yet");
+  write({ ...config, autoRestoreProtected: enabled });
 }
 
 /** Mark or unmark a single control as protected (admin). */

@@ -17,6 +17,7 @@ import {
   MonitorSmartphone,
   Cpu,
   Palette,
+  ShieldAlert,
 } from "lucide-react";
 import { REGIONS } from "@/lib/regions";
 import ManualDeviceForm from "./ManualDeviceForm";
@@ -50,6 +51,10 @@ export default function Settings({ isAdmin }: { isAdmin: boolean }) {
   const [savingOr, setSavingOr] = useState(false);
   const [orMsg, setOrMsg] = useState<string | null>(null);
   const [togglingAi, setTogglingAi] = useState(false);
+
+  // Auto-restore protected controls (gateway turns them back on if switched off)
+  const [autoRestore, setAutoRestore] = useState<boolean | null>(null);
+  const [togglingAutoRestore, setTogglingAutoRestore] = useState(false);
 
   const [creds, setCreds] = useState<{
     hasCreds: boolean;
@@ -98,6 +103,29 @@ export default function Settings({ isAdmin }: { isAdmin: boolean }) {
     }
   }
 
+  const loadAutoRestore = useCallback(async () => {
+    const res = await fetch("/api/protected/auto-restore");
+    if (res.ok) setAutoRestore(Boolean((await res.json()).enabled));
+  }, []);
+
+  async function toggleAutoRestore(next: boolean) {
+    setTogglingAutoRestore(true);
+    try {
+      const res = await fetch("/api/protected/auto-restore", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: next }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed");
+      setAutoRestore(Boolean(data.enabled));
+    } catch {
+      /* leave the previous state; the switch simply won't move */
+    } finally {
+      setTogglingAutoRestore(false);
+    }
+  }
+
   const loadHouse = useCallback(async () => {
     const res = await fetch("/api/house");
     if (res.ok) setHouseName((await res.json()).name || "");
@@ -108,7 +136,8 @@ export default function Settings({ isAdmin }: { isAdmin: boolean }) {
     loadCreds();
     loadAi();
     loadHouse();
-  }, [isAdmin, loadCreds, loadAi, loadHouse]);
+    loadAutoRestore();
+  }, [isAdmin, loadCreds, loadAi, loadHouse, loadAutoRestore]);
 
   async function saveHouse(e: React.FormEvent) {
     e.preventDefault();
@@ -249,6 +278,47 @@ export default function Settings({ isAdmin }: { isAdmin: boolean }) {
             {/* Device gateway */}
             <Section icon={<Cpu size={16} />} title="Device gateway">
               <GatewayControl />
+            </Section>
+
+            {/* Protected controls */}
+            <Section icon={<ShieldAlert size={16} />} title="Protected controls">
+              <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
+                Controls you've marked as protected (e.g. a modem) should stay
+                on. When this is enabled, the gateway turns a protected control
+                back on the moment it's switched off — from anywhere — and logs
+                it. Requires the device gateway to be running.
+              </p>
+              <div className="flex items-center justify-between rounded-xl border border-white/60 bg-white/40 px-3.5 py-3 dark:border-white/10 dark:bg-white/[0.05]">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-slate-800 dark:text-slate-200">
+                    Auto turn back on
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {autoRestore == null
+                      ? "…"
+                      : autoRestore
+                        ? "On · protected controls are kept on automatically"
+                        : "Off · you'll only be warned when one is off"}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={Boolean(autoRestore)}
+                  disabled={autoRestore == null || togglingAutoRestore}
+                  onClick={() => toggleAutoRestore(!autoRestore)}
+                  className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
+                    autoRestore ? "bg-brand-500" : "bg-slate-300 dark:bg-slate-600"
+                  }`}
+                  title="Toggle auto turn-on of protected controls"
+                >
+                  <span
+                    className={`absolute left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                      autoRestore ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
             </Section>
 
             {/* Home name */}

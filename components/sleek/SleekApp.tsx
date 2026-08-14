@@ -16,7 +16,7 @@ import SleekFavourites from "./SleekFavourites";
 import SleekRoutines from "./SleekRoutines";
 import SleekAutomations from "./SleekAutomations";
 import SleekVoice from "./SleekVoice";
-import SleekProtectedAlert from "./SleekProtectedAlert";
+import ProtectedAlert from "../ProtectedAlert";
 import { screenTransition, screenVariants } from "./motion";
 
 type Screen =
@@ -239,7 +239,7 @@ export default function SleekApp({ role, username }: { role: "admin" | "user"; u
       <Assistant available={data.aiAvailable} big />
 
       {data.protectedOff.length > 0 && !protDismissed && (
-        <SleekProtectedAlert
+        <ProtectedAlert
           items={data.protectedOff}
           onTurnOn={(deviceId, code) => data.sendCommand(deviceId, code, true)}
           onDismiss={() => setProtDismissed(true)}

@@ -105,6 +105,10 @@ CommonJS, no build step (`npm start` → `node src/index.js`). Files:
   (fires on false→true, not repeatedly), **primed to current state on load** (so
   saving an already-true rule does NOT retro-fire), per-rule cooldown (3s),
   and **never auto-actuates protected controls** (reads `data/config.json`).
+- `src/protect.js` — **`ProtectedGuard`**: when `config.json#autoRestoreProtected`
+  is on, turns a protected control back ON the moment it goes off (any source),
+  logs `PROTECT_RESTORE` to the app's `logs/`. Cooldown + circuit breaker so it
+  never fights a stuck device; watches `config.json` (live enable/disable). See §8.
 
 App-side glue: `lib/gateway.ts` (client), `app/api/events/route.ts` (SSE proxy
 to the browser), `app/api/gateway/route.ts` + `app/api/gateway/reinit/route.ts`
@@ -190,10 +194,23 @@ real time when the gateway is up.
   before running. Has long-term memory (`lib/chatMemory.ts`).
 - **Protected controls** (`config.json`, `/api/devices/[id]/protect`,
   `/api/protected`): controls that should stay ON (e.g. a modem). `/api/protected`
-  (admin-only) reports live state. Classic shows a banner; **Sleek shows an
-  intrusive popup** (`SleekProtectedAlert.tsx`) on every load, dismissible until
-  next load (in-memory `protDismissed` flag in `SleekApp.tsx`). The gateway rule
-  engine never auto-actuates a protected control.
+  (admin-only) reports live state. **Both themes** show the intrusive popup
+  (`components/ProtectedAlert.tsx`, shared) on every load when a protected control
+  is off, dismissible until next load (in-memory `protDismissed` flag in
+  `SleekApp.tsx` / `Dashboard.tsx`); Classic also keeps its inline red banner as
+  the after-dismiss reminder. The gateway rule engine never auto-actuates a
+  protected control as an automation *action*.
+- **Auto-restore protected controls** (superadmin toggle, default OFF):
+  `config.json#autoRestoreProtected` (getter/setter in `lib/config.ts`, toggle
+  API `/api/protected/auto-restore` GET/PUT admin-only, UI switch in Settings →
+  "Protected controls"). When ON, the **gateway** (`device-gateway/src/protect.js`,
+  `ProtectedGuard`) turns a protected control back on the instant it goes off —
+  from any source — and logs `PROTECT_RESTORE` to the app's `logs/` (so Insights
+  sees it). It watches `config.json` (live toggle, no restart), only acts on
+  false→ transitions (restore→true echo can't loop), and has a per-control
+  cooldown (2s) + circuit breaker (5 attempts/60s → `PROTECT_GIVEUP`) so it never
+  fights a stuck/held-off device forever. **Requires the gateway running**; with
+  no gateway the popup is the only signal.
 - **Heartbeat** (`/api/heartbeat`, `lib/local.ts#heartbeat`): meant for a cron
   (~every 15 min) to read every device, warming IP/version caches so a human
   opening the dashboard afterwards gets fast reads. Optional `HEARTBEAT_SECRET`

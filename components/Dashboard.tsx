@@ -21,6 +21,7 @@ import Favourites from "./Favourites";
 import { favKey } from "./favKey";
 import Assistant from "./Assistant";
 import ThemeToggle from "./ThemeToggle";
+import ProtectedAlert from "./ProtectedAlert";
 
 function timeAgo(ts: number): string {
   const s = Math.floor((Date.now() - ts) / 1000);
@@ -104,6 +105,9 @@ export default function Dashboard({
       state: string;
     }[]
   >([]);
+  // Protected-off popup: intrusive on load, dismissible until the next load
+  // (in-memory flag, resets on refresh) — mirrors the Sleek theme.
+  const [protDismissed, setProtDismissed] = useState(false);
   const [statusByDevice, setStatusByDevice] = useState<
     Record<string, DeviceStatusState>
   >({});
@@ -599,6 +603,14 @@ export default function Dashboard({
 
       {/* Floating AI assistant (only when AI features are available) */}
       <Assistant available={aiAvailable} />
+
+      {isAdmin && protectedOff.length > 0 && !protDismissed && (
+        <ProtectedAlert
+          items={protectedOff}
+          onTurnOn={(deviceId, code) => sendCommand(deviceId, code, true)}
+          onDismiss={() => setProtDismissed(true)}
+        />
+      )}
     </div>
   );
 }

@@ -2,16 +2,28 @@
 
 import { motion } from "framer-motion";
 import { ShieldAlert, Power, X } from "lucide-react";
-import type { ProtectedControl } from "../useHomeData";
+
+// A protected control that is currently off. Structurally shared by both the
+// Sleek data hook (useHomeData.ProtectedControl) and the Classic Dashboard's
+// protected state, so both themes can pass their items straight in.
+export interface ProtectedAlertItem {
+  deviceId: string;
+  code: string;
+  deviceName: string;
+  controlName: string;
+}
 
 // Intrusive popup shown on load when any protected control is OFF. Each can be
-// turned on right here, or the whole thing dismissed until the next load.
-export default function SleekProtectedAlert({
+// turned on right here, or the whole thing dismissed until the next load. Used
+// by both themes (Classic Dashboard + Sleek). The gateway also auto-restores
+// protected controls when it's running; this popup is the notification + the
+// manual fallback for when the gateway is down.
+export default function ProtectedAlert({
   items,
   onTurnOn,
   onDismiss,
 }: {
-  items: ProtectedControl[];
+  items: ProtectedAlertItem[];
   onTurnOn: (deviceId: string, code: string) => void;
   onDismiss: () => void;
 }) {
