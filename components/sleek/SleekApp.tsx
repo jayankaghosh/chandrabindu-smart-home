@@ -282,7 +282,9 @@ export default function SleekApp({ role, username }: { role: "admin" | "user"; u
               {screen.k === "routines" && (
                 <SleekRoutines rooms={rooms ?? []} isAdmin={isAdmin} editMode={editMode} />
               )}
-              {screen.k === "automations" && <SleekAutomations isAdmin={isAdmin} />}
+              {screen.k === "automations" && (
+                <SleekAutomations rooms={rooms ?? []} isAdmin={isAdmin} editMode={editMode} />
+              )}
               {screen.k === "voice" && <SleekVoice />}
               {screen.k === "insights" && <Insights isAdmin={isAdmin} />}
             </motion.div>
