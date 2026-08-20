@@ -1,22 +1,37 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Play, Loader2, Check, Wand2 } from "lucide-react";
-import type { EnrichedRoutine } from "@/lib/types";
+import { Play, Loader2, Check, Wand2, Plus, Pencil, Trash2 } from "lucide-react";
+import type { EnrichedRoutine, Room } from "@/lib/types";
 import { gridContainer, gridItem } from "./motion";
+import SleekRoutineBuilder from "./SleekRoutineBuilder";
 
-export default function SleekRoutines() {
+export default function SleekRoutines({
+  rooms = [],
+  isAdmin = false,
+  editMode = false,
+}: {
+  rooms?: Room[];
+  isAdmin?: boolean;
+  editMode?: boolean;
+} = {}) {
   const [routines, setRoutines] = useState<EnrichedRoutine[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [done, setDone] = useState<Record<string, string>>({});
+  // Builder modal: "new" for a fresh routine, a routine object to edit, or null.
+  const [builder, setBuilder] = useState<"new" | EnrichedRoutine | null>(null);
+  const canEdit = isAdmin && editMode;
 
-  useEffect(() => {
+  const load = useCallback(() => {
     fetch("/api/routines")
       .then((r) => (r.ok ? r.json() : { routines: [] }))
       .then((d) => setRoutines(d.routines ?? []))
       .catch(() => setRoutines([]));
   }, []);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   async function run(id: string) {
     setBusy(id);
@@ -36,32 +51,80 @@ export default function SleekRoutines() {
     }
   }
 
+  async function del(r: EnrichedRoutine) {
+    if (!confirm(`Delete routine "${r.name}"?`)) return;
+    setBusy(r.id);
+    try {
+      const res = await fetch(`/api/routines/${r.id}`, { method: "DELETE" });
+      if (res.ok) load();
+    } catch {
+      /* ignore */
+    } finally {
+      setBusy(null);
+    }
+  }
+
   if (!routines) return <Center><Loader2 className="animate-spin" /></Center>;
-  if (routines.length === 0)
-    return <Center><Wand2 size={30} className="mb-2 opacity-60" />No routines yet</Center>;
 
   return (
-    <motion.div variants={gridContainer} initial="hidden" animate="show" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {routines.map((r) => (
-        <motion.div key={r.id} variants={gridItem} className="card flex flex-col justify-between gap-4 p-5">
-          <div>
-            <p className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-100">{r.name}</p>
-            <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
-              {r.actions.length} action{r.actions.length === 1 ? "" : "s"}
-            </p>
-          </div>
-          <motion.button
-            whileTap={{ scale: 0.97 }}
-            onClick={() => run(r.id)}
-            disabled={busy === r.id}
-            className="btn-primary w-full justify-center !py-4 text-base"
-          >
-            {busy === r.id ? <Loader2 size={18} className="animate-spin" /> : done[r.id] ? <Check size={18} /> : <Play size={18} />}
-            {done[r.id] || "Run"}
-          </motion.button>
+    <div className="space-y-4">
+      {canEdit && (
+        <button onClick={() => setBuilder("new")} className="btn-primary">
+          <Plus size={16} />
+          New routine
+        </button>
+      )}
+
+      {routines.length === 0 ? (
+        <Center><Wand2 size={30} className="mb-2 opacity-60" />No routines yet</Center>
+      ) : (
+        <motion.div variants={gridContainer} initial="hidden" animate="show" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {routines.map((r) => (
+            <motion.div key={r.id} variants={gridItem} className="card flex flex-col justify-between gap-4 p-5">
+              <div>
+                <p className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-100">{r.name}</p>
+                <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
+                  {r.actions.length} action{r.actions.length === 1 ? "" : "s"}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => run(r.id)}
+                  disabled={busy === r.id}
+                  className="btn-primary flex-1 justify-center !py-4 text-base"
+                >
+                  {busy === r.id ? <Loader2 size={18} className="animate-spin" /> : done[r.id] ? <Check size={18} /> : <Play size={18} />}
+                  {done[r.id] || "Run"}
+                </motion.button>
+                {canEdit && (
+                  <>
+                    <button onClick={() => setBuilder(r)} aria-label={`Edit ${r.name}`} className="icon-btn h-12 w-12">
+                      <Pencil size={16} />
+                    </button>
+                    <button onClick={() => del(r)} aria-label={`Delete ${r.name}`} className="icon-btn h-12 w-12 text-red-500">
+                      <Trash2 size={16} />
+                    </button>
+                  </>
+                )}
+              </div>
+            </motion.div>
+          ))}
         </motion.div>
-      ))}
-    </motion.div>
+      )}
+
+      {builder && (
+        <SleekRoutineBuilder
+          rooms={rooms}
+          initial={builder === "new" ? undefined : builder}
+          onCancel={() => setBuilder(null)}
+          onSaved={() => {
+            setBuilder(null);
+            load();
+          }}
+        />
+      )}
+    </div>
   );
 }
 

@@ -4,9 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronLeft, Home as HomeIcon, LogOut, Settings as SettingsIcon, Loader2 } from "lucide-react";
+import { ChevronLeft, Home as HomeIcon, LogOut, Settings as SettingsIcon, Loader2, CloudDownload, Pencil } from "lucide-react";
 import { useHomeData } from "../useHomeData";
 import ThemeToggle from "../ThemeToggle";
+import SleekModeToggle from "./SleekModeToggle";
+import { readEditMode, setEditMode as persistEditMode } from "./editMode";
 import Assistant from "../Assistant";
 import Insights from "../Insights";
 import SleekHome, { type Section } from "./SleekHome";
@@ -87,6 +89,32 @@ export default function SleekApp({ role, username }: { role: "admin" | "user"; u
   // dismissible until the next load (in-memory flag, resets on refresh).
   const [protDismissed, setProtDismissed] = useState(false);
 
+  // Edit Mode (admin-only, remembered per device). Hydrated after mount to
+  // avoid an SSR mismatch; forced off for non-admins.
+  const [editMode, setEditModeState] = useState(false);
+  useEffect(() => {
+    if (isAdmin) setEditModeState(readEditMode());
+  }, [isAdmin]);
+  const toggleEditMode = (on: boolean) => {
+    setEditModeState(on);
+    persistEditMode(on);
+  };
+
+
+  // Cloud re-sync (Edit Mode). Pull devices/rooms/keys, then refresh the UI.
+  const [syncing, setSyncing] = useState(false);
+  async function syncFromCloud() {
+    setSyncing(true);
+    try {
+      const res = await fetch("/api/sync", { method: "POST" });
+      if (res.ok) data.reload();
+    } catch {
+      /* ignore — a failed sync leaves current state untouched */
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   const go = (s: Screen) => {
     setDir(1);
     setStack((st) => [...st, s]);
@@ -162,10 +190,31 @@ export default function SleekApp({ role, username }: { role: "admin" | "user"; u
               )}
               <h1 className="truncate text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">{title}</h1>
             </div>
+            {/* Persistent indicator so a device is never silently left editable. */}
+            {editMode && !atHome && (
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-500/15 px-2.5 py-1 text-xs font-semibold text-amber-700 dark:text-amber-300">
+                <Pencil size={12} />
+                Edit
+              </span>
+            )}
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {atHome ? (
               <>
+                {isAdmin && (
+                  <SleekModeToggle editMode={editMode} onChange={toggleEditMode} />
+                )}
+                {isAdmin && editMode && (
+                  <button
+                    onClick={syncFromCloud}
+                    disabled={syncing}
+                    aria-label="Sync from cloud"
+                    title="Sync from cloud"
+                    className="icon-btn disabled:opacity-50"
+                  >
+                    {syncing ? <Loader2 size={16} className="animate-spin" /> : <CloudDownload size={16} />}
+                  </button>
+                )}
                 <ThemeToggle />
                 <Link href="/settings" aria-label="Settings" className="icon-btn">
                   <SettingsIcon size={16} />
@@ -225,10 +274,17 @@ export default function SleekApp({ role, username }: { role: "admin" | "user"; u
                   onCommand={data.sendCommand}
                   onToggleFavourite={data.toggleFavourite}
                   onUnlocked={data.reload}
+                  editMode={editMode}
+                  allRooms={(rooms ?? []).map((r) => ({ id: r.id, name: r.name }))}
+                  onChanged={data.reload}
                 />
               )}
-              {screen.k === "routines" && <SleekRoutines />}
-              {screen.k === "automations" && <SleekAutomations isAdmin={isAdmin} />}
+              {screen.k === "routines" && (
+                <SleekRoutines rooms={rooms ?? []} isAdmin={isAdmin} editMode={editMode} />
+              )}
+              {screen.k === "automations" && (
+                <SleekAutomations rooms={rooms ?? []} isAdmin={isAdmin} editMode={editMode} />
+              )}
               {screen.k === "voice" && <SleekVoice />}
               {screen.k === "insights" && <Insights isAdmin={isAdmin} />}
             </motion.div>

@@ -246,6 +246,27 @@ Two full UIs, per-device selectable in Settings (Appearance). Persisted in
   - **Phase A (touch) is done.** Phase B (TV remote / d-pad focus nav) and
     Phase C (smartwatch subset) are **deferred** — do not start without explicit
     user confirmation.
+- **Sleek Edit Mode** (`components/sleek/editMode.ts`, `SleekModeToggle.tsx`):
+  an **admin-only** Run/Edit toggle in the Sleek home header, remembered per
+  device (`localStorage["sleek-edit-mode"]`, read after mount). Run Mode is the
+  lightweight control-only surface; Edit Mode reveals the management features
+  Sleek otherwise hides. A persistent "Edit" pill shows in the header on
+  sub-screens while active. `SleekApp` holds `editMode` and threads it (with
+  `isAdmin`) to children; every affordance gates on `isAdmin && editMode`. The
+  APIs are already `guard({admin:true})`, so this is purely a UI gate. Features:
+  - **Naming/move/protect** — room rename bar + per-device `SleekDeviceEditSheet`
+    (rename, move room, relabel controls, toggle protected) in `SleekRoomDetail`.
+  - **Room lock admin** — `SleekRoomLockSheet` (lock / set-password / remove).
+  - **Routines authoring** — `SleekRoutines` New/Edit/Delete + `SleekRoutineBuilder`.
+  - **Automations authoring** — `SleekAutomations` New/Edit/Delete + `SleekAutomationBuilder`
+    (IF match all/any → THEN); keeps the existing view + enable/disable.
+  - **Cloud Sync** button in the home header (`POST /api/sync`).
+  - **`SleekActionPicker`** is the shared big-button device→control→value picker
+    reused by both builders.
+  - ⚠️ **The two builders are MODAL overlays, not nav-stack screens.** A nav-stack
+    builder deadlocked `AnimatePresence mode="wait"` (exit never completed). The
+    modal pattern (like the sheets) avoids the screen transition entirely — keep
+    new full-screen editors as modals.
 - **Bluetooth devices:** `lib/store.ts` sets `UiDevice.bluetooth` when the cloud
   name matches `/\b(ble|bluetooth)\b/i`. Both themes show "This is a BT device,
   cannot control from here" instead of controls (can't reach BLE over the LAN).
