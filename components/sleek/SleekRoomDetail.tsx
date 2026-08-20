@@ -10,6 +10,7 @@ import { CONTROLLABLE } from "./labels";
 import { gridContainer, gridItem } from "./motion";
 import SleekControlTile from "./SleekControlTile";
 import SleekDeviceEditSheet from "./SleekDeviceEditSheet";
+import SleekRoomLockSheet from "./SleekRoomLockSheet";
 
 export default function SleekRoomDetail({
   room,
@@ -35,6 +36,7 @@ export default function SleekRoomDetail({
   onChanged?: () => void;
 }) {
   const [editing, setEditing] = useState<UiDevice | null>(null);
+  const [lockOpen, setLockOpen] = useState(false);
   const canEdit = isAdmin && editMode;
   const refresh = onChanged ?? (() => {});
 
@@ -46,7 +48,18 @@ export default function SleekRoomDetail({
 
   return (
     <div className="space-y-7">
-      {canEdit && <RoomRenameBar room={room} onSaved={refresh} />}
+      {canEdit && (
+        <div className="flex flex-wrap items-center gap-2">
+          <RoomRenameBar room={room} onSaved={refresh} />
+          <button
+            onClick={() => setLockOpen(true)}
+            className="inline-flex items-center gap-2 rounded-2xl border border-white/60 bg-white/40 px-3.5 py-2 text-sm font-medium text-slate-600 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.05] dark:text-slate-300"
+          >
+            {room.locked ? <Lock size={14} className="text-amber-600 dark:text-amber-400" /> : <LockOpen size={14} />}
+            {room.locked ? "Manage lock" : "Lock room"}
+          </button>
+        </div>
+      )}
 
       {devices.length === 0 && (
         <p className="px-1 py-10 text-center text-slate-500 dark:text-slate-400">No controllable switches in this room.</p>
@@ -112,6 +125,9 @@ export default function SleekRoomDetail({
           onClose={() => setEditing(null)}
           onSaved={refresh}
         />
+      )}
+      {lockOpen && (
+        <SleekRoomLockSheet room={room} onClose={() => setLockOpen(false)} onSaved={refresh} />
       )}
     </div>
   );
