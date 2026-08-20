@@ -100,6 +100,7 @@ export default function SleekApp({ role, username }: { role: "admin" | "user"; u
     persistEditMode(on);
   };
 
+
   // Cloud re-sync (Edit Mode). Pull devices/rooms/keys, then refresh the UI.
   const [syncing, setSyncing] = useState(false);
   async function syncFromCloud() {
@@ -278,7 +279,9 @@ export default function SleekApp({ role, username }: { role: "admin" | "user"; u
                   onChanged={data.reload}
                 />
               )}
-              {screen.k === "routines" && <SleekRoutines />}
+              {screen.k === "routines" && (
+                <SleekRoutines rooms={rooms ?? []} isAdmin={isAdmin} editMode={editMode} />
+              )}
               {screen.k === "automations" && <SleekAutomations isAdmin={isAdmin} />}
               {screen.k === "voice" && <SleekVoice />}
               {screen.k === "insights" && <Insights isAdmin={isAdmin} />}
