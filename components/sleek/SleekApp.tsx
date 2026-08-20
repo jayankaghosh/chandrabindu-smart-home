@@ -273,6 +273,9 @@ export default function SleekApp({ role, username }: { role: "admin" | "user"; u
                   onCommand={data.sendCommand}
                   onToggleFavourite={data.toggleFavourite}
                   onUnlocked={data.reload}
+                  editMode={editMode}
+                  allRooms={(rooms ?? []).map((r) => ({ id: r.id, name: r.name }))}
+                  onChanged={data.reload}
                 />
               )}
               {screen.k === "routines" && <SleekRoutines />}
