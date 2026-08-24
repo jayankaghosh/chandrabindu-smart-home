@@ -22,6 +22,8 @@ import { favKey } from "./favKey";
 import Assistant from "./Assistant";
 import ThemeToggle from "./ThemeToggle";
 import ProtectedAlert from "./ProtectedAlert";
+import ClassicDeprecationNotice from "./ClassicDeprecationNotice";
+import { setUiTheme } from "./uiTheme";
 
 function timeAgo(ts: number): string {
   const s = Math.floor((Date.now() - ts) / 1000);
@@ -108,6 +110,36 @@ export default function Dashboard({
   // Protected-off popup: intrusive on load, dismissible until the next load
   // (in-memory flag, resets on refresh) — mirrors the Sleek theme.
   const [protDismissed, setProtDismissed] = useState(false);
+
+  // Classic-deprecation nudge for non-admin users: offer switching to Sleek.
+  // "Remind me in 7 days" stores a timestamp; the popup stays hidden until then.
+  // Read after mount to avoid an SSR mismatch.
+  const REMIND_KEY = "classic-deprecation-remind-at";
+  const REMIND_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+  const [showDeprecation, setShowDeprecation] = useState(false);
+  useEffect(() => {
+    if (isAdmin) return; // admins keep Classic; only nudge standard users
+    let remindAt = 0;
+    try {
+      remindAt = Number(localStorage.getItem(REMIND_KEY)) || 0;
+    } catch {
+      remindAt = 0;
+    }
+    if (Date.now() >= remindAt) setShowDeprecation(true);
+  }, [isAdmin]);
+
+  function switchToSleek() {
+    setUiTheme("sleek");
+    window.location.assign("/"); // re-enter the home experience as Sleek
+  }
+  function remindLater() {
+    try {
+      localStorage.setItem(REMIND_KEY, String(Date.now() + REMIND_DAYS_MS));
+    } catch {
+      /* ignore */
+    }
+    setShowDeprecation(false);
+  }
   const [statusByDevice, setStatusByDevice] = useState<
     Record<string, DeviceStatusState>
   >({});
@@ -610,6 +642,10 @@ export default function Dashboard({
           onTurnOn={(deviceId, code) => sendCommand(deviceId, code, true)}
           onDismiss={() => setProtDismissed(true)}
         />
+      )}
+
+      {!isAdmin && showDeprecation && (
+        <ClassicDeprecationNotice onSwitch={switchToSleek} onRemind={remindLater} />
       )}
     </div>
   );
