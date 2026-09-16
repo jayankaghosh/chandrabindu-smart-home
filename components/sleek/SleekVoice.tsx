@@ -32,6 +32,13 @@ export default function SleekVoice() {
   const scrollRef = useRef<HTMLDivElement>(null);
   // Streaming transcript buffers keyed by item/response id.
   const asstBuf = useRef<Record<string, string>>({});
+  // Response sequencing: a `response.create` may only be sent when no response is
+  // active. After tool calls we defer it until the current response is done and
+  // all tool outputs have been sent (else OpenAI errors "active response in
+  // progress").
+  const activeResponse = useRef(false);
+  const toolPromises = useRef<Promise<void>[]>([]);
+  const toolHandled = useRef(false);
 
   useEffect(() => {
     fetch("/api/voice/session")
@@ -79,6 +86,9 @@ export default function SleekVoice() {
     dcRef.current = null;
     micRef.current = null;
     asstBuf.current = {};
+    activeResponse.current = false;
+    toolHandled.current = false;
+    toolPromises.current = [];
     setSpeaking(false);
   }
 
@@ -184,17 +194,36 @@ export default function SleekVoice() {
       setSpeaking(true);
       return;
     }
-    if (type === "output_audio_buffer.stopped" || type === "response.done") {
+    if (type === "response.created") {
+      activeResponse.current = true;
+      toolHandled.current = false;
+      toolPromises.current = [];
+      return;
+    }
+    if (type === "output_audio_buffer.stopped") {
       setSpeaking(false);
       return;
     }
-    // Function/tool call
-    if (type === "response.function_call_arguments.done") {
-      void handleToolCall(ev.name, ev.call_id, ev.arguments);
+    if (type === "response.done") {
+      setSpeaking(false);
+      activeResponse.current = false;
+      // If this response asked us to run tools, reply once — AFTER the response
+      // finished and every tool output has been submitted.
+      if (toolHandled.current) {
+        toolHandled.current = false;
+        const pending = toolPromises.current;
+        toolPromises.current = [];
+        Promise.allSettled(pending).then(() => {
+          if (!activeResponse.current) sendEvent({ type: "response.create" });
+        });
+      }
       return;
     }
-    if (type === "response.output_item.done" && ev.item?.type === "function_call") {
-      void handleToolCall(ev.item.name, ev.item.call_id, ev.item.arguments);
+    // Function/tool call — execute + submit output now; the reply is triggered
+    // from response.done (never send response.create while one is active).
+    if (type === "response.function_call_arguments.done") {
+      toolHandled.current = true;
+      toolPromises.current.push(handleToolCall(ev.name, ev.call_id, ev.arguments));
       return;
     }
     if (type === "error") {
@@ -239,12 +268,12 @@ export default function SleekVoice() {
     } catch (e) {
       output = { error: (e as Error).message };
     }
-    // Return the result to the model, then ask it to continue speaking.
+    // Submit the tool result. The follow-up response is created from
+    // response.done (so we never create one while a response is still active).
     sendEvent({
       type: "conversation.item.create",
       item: { type: "function_call_output", call_id: callId, output: JSON.stringify(output) },
     });
-    sendEvent({ type: "response.create" });
   }
 
   function sendEvent(obj: unknown) {
