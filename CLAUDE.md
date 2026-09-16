@@ -191,7 +191,19 @@ real time when the gateway is up.
   On-demand, not real-time. Default model `qwen/qwen3-coder:free`.
 - **AI Assistant** (`lib/chat.ts`, `/api/ai/chat`, `Assistant.tsx`): NL Q&A about
   the home + translates requests into validated device actions the UI confirms
-  before running. Has long-term memory (`lib/chatMemory.ts`).
+  before running. Has long-term memory (see below).
+- **Shared assistant memory** (`lib/chatMemory.ts`) — **one store used by both
+  the chat and voice agents**, two tiers:
+  - **Personal** — `data/chatbot/memory/<username>.json`, private to that user.
+  - **Core (house)** — `data/chatbot/core-memory.json`, read by *every* user's
+    agent. **Only the superadmin writes it, and only on explicit intent**
+    (`scope:"core"` — "remember for everyone / in core memory"). A non-admin's
+    core request is **downgraded to personal server-side** in `applyMemoryUpdate`.
+  Everyone reads core + their own personal. The model proposes
+  `memory.{add,remove,scope}` (chat, in its JSON) or calls the `remember` tool
+  (voice → `POST /api/voice/memory`); both route through the same
+  `applyMemoryUpdate(username, update, {isAdmin})`. Existing `admin.json` stays
+  the admin's personal memory (no migration; core starts empty).
 - **Protected controls** (`config.json`, `/api/devices/[id]/protect`,
   `/api/protected`): controls that should stay ON (e.g. a modem). `/api/protected`
   (admin-only) reports live state. **Both themes** show the intrusive popup
@@ -225,7 +237,10 @@ real time when the gateway is up.
   with `POST https://api.openai.com/v1/realtime/calls`, and talks over the
   `oai-events` data channel. The model calls tools it maps itself from the
   catalog: `set_controls` → `POST /api/voice/execute`, `get_status` →
-  `POST /api/voice/status`, `run_routine` → `POST /api/routines/[id]/run`.
+  `POST /api/voice/status`, `run_routine` → `POST /api/routines/[id]/run`,
+  `remember` → `POST /api/voice/memory` (shared assistant memory — see above).
+  The session instructions also include the house name + device count + the
+  user's core+personal memory, so voice knows everything the chat agent does.
   Config in Settings → **Voice (Realtime)** (`config.json#openaiRealtime`:
   key/model/voice/enabled; getters in `lib/config.ts`; admin API
   `GET/PUT /api/voice/config`). Default model `gpt-realtime`, voice `marin`.
