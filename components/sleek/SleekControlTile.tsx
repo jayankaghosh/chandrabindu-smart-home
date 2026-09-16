@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Star, ShieldAlert, Ban, X, Check } from "lucide-react";
+import { Star, ShieldAlert, X, Check } from "lucide-react";
 import type { DeviceFunction } from "@/lib/types";
 import { controlKind, iconForControl, KIND_ON_GRADIENT, KIND_GLOW } from "@/lib/icons";
 import { enumLabel, isOn, valueLabel } from "./labels";
@@ -144,16 +144,15 @@ export default function SleekControlTile({
           </div>
         )}
 
-        {/* Protected badge — a forbidden symbol marking a control that
-            shouldn't be toggled (non-admins can't; admins must confirm). */}
+        {/* Protected overlay — greys out the whole tile to mark a control
+            that shouldn't be toggled (non-admins can't; admins tap through
+            to confirm). */}
         {isProtected && (
-          <span
+          <div
             title="Protected control"
             aria-label="Protected control"
-            className="pointer-events-none absolute -left-1.5 -top-1.5 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-md ring-1 ring-black/5 dark:bg-slate-800 dark:ring-white/10"
-          >
-            <Ban size={16} className="text-red-500" strokeWidth={2.5} />
-          </span>
+            className="pointer-events-none absolute inset-0 z-10 rounded-[26px] bg-slate-400/50 backdrop-grayscale dark:bg-slate-900/55"
+          />
         )}
 
         {/* Favourite star */}
@@ -163,7 +162,7 @@ export default function SleekControlTile({
             onClick={onToggleFavourite}
             aria-pressed={isFavourite}
             title={isFavourite ? "Remove favourite" : "Add favourite"}
-            className="absolute -right-1.5 -top-1.5 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-md ring-1 ring-black/5 dark:bg-slate-800 dark:ring-white/10"
+            className="absolute -right-1.5 -top-1.5 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-md ring-1 ring-black/5 dark:bg-slate-800 dark:ring-white/10"
           >
             <Star size={15} className={isFavourite ? "fill-amber-400 text-amber-400" : "text-slate-400 dark:text-slate-500"} />
           </button>

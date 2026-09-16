@@ -237,9 +237,12 @@ export default function SleekApp({ role, username }: { role: "admin" | "user"; u
                 </button>
               </>
             ) : (
-              <motion.button whileTap={{ scale: 0.92 }} onClick={goHome} aria-label="Home" className={iconBtn}>
-                <HomeIcon size={22} />
-              </motion.button>
+              <>
+                <ThemeToggle className={iconBtn} />
+                <motion.button whileTap={{ scale: 0.92 }} onClick={goHome} aria-label="Home" className={iconBtn}>
+                  <HomeIcon size={22} />
+                </motion.button>
+              </>
             )}
           </div>
         </div>
@@ -248,7 +251,15 @@ export default function SleekApp({ role, username }: { role: "admin" | "user"; u
       {/* Room switcher — jump between rooms without going back to the list. */}
       {screen.k === "room" && (
         <SleekRoomSwitcher
-          rooms={(rooms ?? []).map((r) => ({ id: r.id, name: r.name, locked: r.locked }))}
+          rooms={(rooms ?? []).map((r) => {
+            let on = 0;
+            for (const d of r.devices) {
+              const vals = statusByDevice[d.id]?.values ?? {};
+              // Count on switches, excluding protected ones (kept-on, not user toggles).
+              for (const f of d.functions) if (f.type === "Boolean" && !f.protected && vals[f.code] === true) on++;
+            }
+            return { id: r.id, name: r.name, locked: r.locked, on };
+          })}
           activeId={screen.roomId}
           onSwitch={switchRoom}
         />
