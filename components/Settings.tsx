@@ -28,6 +28,18 @@ import DevicePairing from "./DevicePairing";
 import GatewayControl from "./GatewayControl";
 import ThemeSelect from "./ThemeSelect";
 
+// Realtime voice options for the Settings dropdowns.
+const REALTIME_MODELS = [
+  { value: "gpt-realtime", label: "gpt-realtime — best quality" },
+  { value: "gpt-realtime-mini", label: "gpt-realtime-mini — faster & cheaper" },
+];
+const REALTIME_VOICES = ["marin", "cedar", "alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse"];
+
+/** Merge a stored value into an option list so a custom/unlisted value still shows. */
+function withCurrent(options: string[], current: string): string[] {
+  return current && !options.includes(current) ? [current, ...options] : options;
+}
+
 export default function Settings({ isAdmin }: { isAdmin: boolean }) {
   const [resyncing, setResyncing] = useState(false);
   const [resyncMsg, setResyncMsg] = useState<string | null>(null);
@@ -620,18 +632,29 @@ export default function Settings({ isAdmin }: { isAdmin: boolean }) {
               placeholder={voice?.hasKey ? "OpenAI API key (re-enter to change)" : "OpenAI API key (sk-…)"}
             />
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <input
-                value={voModel}
-                onChange={(e) => setVoModel(e.target.value)}
-                className="field"
-                placeholder="Model (e.g. gpt-realtime)"
-              />
-              <input
-                value={voVoice}
-                onChange={(e) => setVoVoice(e.target.value)}
-                className="field"
-                placeholder="Voice (e.g. marin)"
-              />
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">Model</span>
+                <select value={voModel} onChange={(e) => setVoModel(e.target.value)} className="field">
+                  {withCurrent(REALTIME_MODELS.map((m) => m.value), voModel).map((v) => {
+                    const known = REALTIME_MODELS.find((m) => m.value === v);
+                    return (
+                      <option key={v} value={v}>
+                        {known ? known.label : v}
+                      </option>
+                    );
+                  })}
+                </select>
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">Voice</span>
+                <select value={voVoice} onChange={(e) => setVoVoice(e.target.value)} className="field">
+                  {withCurrent(REALTIME_VOICES, voVoice).map((v) => (
+                    <option key={v} value={v}>
+                      {v}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
             <button type="submit" disabled={savingVo || (!voKey && !voModel && !voVoice)} className="btn-primary">
               {savingVo ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}
