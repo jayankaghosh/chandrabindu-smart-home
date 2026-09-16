@@ -15,6 +15,7 @@ export const DEFAULT_INSIGHTS_MODEL = "qwen/qwen3-coder:free";
 export const DEFAULT_HOUSE_NAME = "Home";
 export const DEFAULT_REALTIME_MODEL = "gpt-realtime";
 export const DEFAULT_REALTIME_VOICE = "marin";
+export const DEFAULT_REALTIME_IDLE_SEC = 10; // 0 = never auto-end on silence
 
 // The onboarding password is the superadmin. Superadmin signs in with this
 // reserved username; it can never be used for a standard user.
@@ -56,7 +57,7 @@ interface AppConfig {
   tuya?: TuyaCreds;
   openrouter?: { apiKey: string; model: string; enabled?: boolean };
   /** OpenAI key + settings for the Realtime (speech-to-speech) voice mode. */
-  openaiRealtime?: { apiKey: string; model?: string; voice?: string; enabled?: boolean };
+  openaiRealtime?: { apiKey: string; model?: string; voice?: string; enabled?: boolean; idleTimeoutSec?: number };
 }
 
 /** Public (no secret) view of a user, for the settings UI. */
@@ -441,13 +442,14 @@ export function setOpenRouter(opts: {
  * OpenAI key + model/voice for the Realtime voice mode. Returns null when there
  * is no key OR the admin disabled it — so the voice feature turns off cleanly.
  */
-export function getOpenaiRealtime(): { apiKey: string; model: string; voice: string } | null {
+export function getOpenaiRealtime(): { apiKey: string; model: string; voice: string; idleTimeoutSec: number } | null {
   const o = read()?.openaiRealtime;
   if (!o?.apiKey || o.enabled === false) return null;
   return {
     apiKey: o.apiKey,
     model: o.model || DEFAULT_REALTIME_MODEL,
     voice: o.voice || DEFAULT_REALTIME_VOICE,
+    idleTimeoutSec: typeof o.idleTimeoutSec === "number" ? o.idleTimeoutSec : DEFAULT_REALTIME_IDLE_SEC,
   };
 }
 
@@ -464,6 +466,7 @@ export function getRealtimeVoiceStatus(): {
   available: boolean;
   model: string;
   voice: string;
+  idleTimeoutSec: number;
 } {
   const o = read()?.openaiRealtime;
   const hasKey = Boolean(o?.apiKey);
@@ -474,6 +477,7 @@ export function getRealtimeVoiceStatus(): {
     available: hasKey && enabled,
     model: o?.model || DEFAULT_REALTIME_MODEL,
     voice: o?.voice || DEFAULT_REALTIME_VOICE,
+    idleTimeoutSec: typeof o?.idleTimeoutSec === "number" ? o.idleTimeoutSec : DEFAULT_REALTIME_IDLE_SEC,
   };
 }
 
@@ -482,10 +486,16 @@ export function setOpenaiRealtime(opts: {
   model?: string;
   voice?: string;
   enabled?: boolean;
+  idleTimeoutSec?: number;
 }): void {
   const config = read();
   if (!config) throw new Error("App is not onboarded yet");
   const prev = config.openaiRealtime ?? { apiKey: "" };
+  // 0 = end after each reply; N>0 = end after N seconds of silence. Clamp sane.
+  const idle =
+    typeof opts.idleTimeoutSec === "number" && Number.isFinite(opts.idleTimeoutSec)
+      ? Math.max(0, Math.min(3600, Math.round(opts.idleTimeoutSec)))
+      : prev.idleTimeoutSec;
   write({
     ...config,
     openaiRealtime: {
@@ -494,6 +504,7 @@ export function setOpenaiRealtime(opts: {
       model: (opts.model && opts.model.trim()) || prev.model || DEFAULT_REALTIME_MODEL,
       voice: (opts.voice && opts.voice.trim()) || prev.voice || DEFAULT_REALTIME_VOICE,
       enabled: opts.enabled !== undefined ? opts.enabled : prev.enabled,
+      idleTimeoutSec: idle,
     },
   });
 }

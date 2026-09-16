@@ -16,7 +16,7 @@ export async function GET() {
 export async function PUT(req: Request) {
   const denied = guard({ admin: true });
   if (denied) return denied;
-  let body: { apiKey?: unknown; model?: unknown; voice?: unknown; enabled?: unknown } = {};
+  let body: { apiKey?: unknown; model?: unknown; voice?: unknown; enabled?: unknown; idleTimeoutSec?: unknown } = {};
   try {
     body = await req.json();
   } catch {
@@ -27,6 +27,10 @@ export async function PUT(req: Request) {
     model: typeof body.model === "string" ? body.model : undefined,
     voice: typeof body.voice === "string" ? body.voice : undefined,
     enabled: typeof body.enabled === "boolean" ? body.enabled : undefined,
+    idleTimeoutSec:
+      typeof body.idleTimeoutSec === "number" && Number.isFinite(body.idleTimeoutSec)
+        ? body.idleTimeoutSec
+        : undefined,
   });
   logAction("VOICE_CONFIG", { enabled: getRealtimeVoiceStatus().enabled });
   return NextResponse.json(getRealtimeVoiceStatus());

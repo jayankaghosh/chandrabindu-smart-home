@@ -184,6 +184,7 @@ export interface RealtimeSecret {
   clientSecret: string;
   model: string;
   expiresAt: number;
+  idleTimeoutSec: number;
 }
 
 /**
@@ -226,7 +227,12 @@ export async function createRealtimeSecret(username: string, isAdmin: boolean): 
   }
   const clientSecret: string = data?.value;
   if (!clientSecret) throw new Error("No client secret returned");
-  return { clientSecret, model: cfg.model, expiresAt: Number(data?.expires_at) || 0 };
+  return {
+    clientSecret,
+    model: cfg.model,
+    expiresAt: Number(data?.expires_at) || 0,
+    idleTimeoutSec: cfg.idleTimeoutSec,
+  };
 }
 
 /** Live status for the get_status tool: values per requested device. */

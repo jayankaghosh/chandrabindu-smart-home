@@ -76,10 +76,12 @@ export default function Settings({ isAdmin }: { isAdmin: boolean }) {
     available: boolean;
     model: string;
     voice: string;
+    idleTimeoutSec: number;
   } | null>(null);
   const [voKey, setVoKey] = useState("");
   const [voModel, setVoModel] = useState("");
   const [voVoice, setVoVoice] = useState("");
+  const [voIdle, setVoIdle] = useState("10");
   const [savingVo, setSavingVo] = useState(false);
   const [voMsg, setVoMsg] = useState<string | null>(null);
   const [togglingVoice, setTogglingVoice] = useState(false);
@@ -119,9 +121,10 @@ export default function Settings({ isAdmin }: { isAdmin: boolean }) {
     setVoice(data);
     if (data.model) setVoModel(data.model);
     if (data.voice) setVoVoice(data.voice);
+    if (typeof data.idleTimeoutSec === "number") setVoIdle(String(data.idleTimeoutSec));
   }, []);
 
-  async function saveVoice(payload: { apiKey?: string; model?: string; voice?: string; enabled?: boolean }) {
+  async function saveVoice(payload: { apiKey?: string; model?: string; voice?: string; enabled?: boolean; idleTimeoutSec?: number }) {
     const res = await fetch("/api/voice/config", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -138,7 +141,12 @@ export default function Settings({ isAdmin }: { isAdmin: boolean }) {
     setSavingVo(true);
     setVoMsg(null);
     try {
-      await saveVoice({ apiKey: voKey || undefined, model: voModel || undefined, voice: voVoice || undefined });
+      await saveVoice({
+        apiKey: voKey || undefined,
+        model: voModel || undefined,
+        voice: voVoice || undefined,
+        idleTimeoutSec: voIdle.trim() === "" ? undefined : Number(voIdle),
+      });
       setVoKey("");
       setVoMsg("Saved.");
     } catch (e2) {
@@ -656,6 +664,20 @@ export default function Settings({ isAdmin }: { isAdmin: boolean }) {
                 </select>
               </label>
             </div>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
+                Auto-end after silence (seconds) — 0 = end right after each reply
+              </span>
+              <input
+                type="number"
+                min={0}
+                max={3600}
+                value={voIdle}
+                onChange={(e) => setVoIdle(e.target.value)}
+                className="field"
+                placeholder="10"
+              />
+            </label>
             <button type="submit" disabled={savingVo || (!voKey && !voModel && !voVoice)} className="btn-primary">
               {savingVo ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}
               Save

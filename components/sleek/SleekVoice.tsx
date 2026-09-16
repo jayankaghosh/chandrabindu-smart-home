@@ -40,9 +40,11 @@ export default function SleekVoice() {
   const toolPromises = useRef<Promise<void>[]>([]);
   const toolHandled = useRef(false);
   const endRequested = useRef(false); // model called end_conversation
+  const endAfterResponse = useRef(false); // idle=0: end once the reply finishes
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const IDLE_MS = 10_000; // end the session after this much silence
+  // Auto-end policy from server config: >0 = end after N seconds of silence;
+  // 0 = end right after each reply (one-shot).
+  const idleSecRef = useRef(10);
 
   useEffect(() => {
     fetch("/api/voice/session")
@@ -94,6 +96,7 @@ export default function SleekVoice() {
     toolHandled.current = false;
     toolPromises.current = [];
     endRequested.current = false;
+    endAfterResponse.current = false;
     if (idleTimer.current) {
       clearTimeout(idleTimer.current);
       idleTimer.current = null;
@@ -125,6 +128,7 @@ export default function SleekVoice() {
         setState("error");
         return;
       }
+      idleSecRef.current = typeof sdata.idleTimeoutSec === "number" ? sdata.idleTimeoutSec : 10;
 
       // 3) WebRTC peer
       const pc = new RTCPeerConnection();
@@ -175,11 +179,16 @@ export default function SleekVoice() {
     setError(reason ?? null);
   }
 
-  // Reset the inactivity timer on any activity; fire end() after IDLE_MS of silence.
+  // Reset the inactivity timer on any activity; fire end() after the configured
+  // seconds of silence. When the timeout is 0 there is no idle timer — the
+  // session ends right after each reply instead (see response.done handling).
   function bumpIdle() {
     if (idleTimer.current) clearTimeout(idleTimer.current);
-    if (!pcRef.current) return; // only while connected
-    idleTimer.current = setTimeout(() => end("Ended after a while with no activity."), IDLE_MS);
+    if (!pcRef.current || idleSecRef.current <= 0) return;
+    idleTimer.current = setTimeout(
+      () => end("Ended after a while with no activity."),
+      idleSecRef.current * 1000,
+    );
   }
 
   // ── Realtime event handling ────────────────────────────────────────────────
@@ -221,22 +230,31 @@ export default function SleekVoice() {
     }
     if (type === "output_audio_buffer.stopped") {
       setSpeaking(false);
-      // The model asked to end — tear down once its goodbye has finished playing.
-      if (endRequested.current) setTimeout(() => end(), 300);
+      // The model asked to end, or idle=0 wants to end after the reply — tear
+      // down once the audio has finished playing.
+      if (endRequested.current || endAfterResponse.current) setTimeout(() => end(), 300);
       return;
     }
     if (type === "response.done") {
       setSpeaking(false);
       activeResponse.current = false;
+      const hadTools = toolHandled.current;
       // If this response asked us to run tools, reply once — AFTER the response
       // finished and every tool output has been submitted.
-      if (toolHandled.current) {
+      if (hadTools) {
         toolHandled.current = false;
         const pending = toolPromises.current;
         toolPromises.current = [];
         Promise.allSettled(pending).then(() => {
           if (!activeResponse.current) sendEvent({ type: "response.create" });
         });
+      } else if (idleSecRef.current <= 0 && !endRequested.current) {
+        // idle=0: end once this (final, non-tool) reply's audio finishes. A
+        // fallback covers replies with no audio.
+        endAfterResponse.current = true;
+        setTimeout(() => {
+          if (endAfterResponse.current) end();
+        }, 3000);
       }
       return;
     }
