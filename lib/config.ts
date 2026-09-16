@@ -13,6 +13,8 @@ const CONFIG_PATH = path.join(DATA_DIR, "config.json");
 
 export const DEFAULT_INSIGHTS_MODEL = "qwen/qwen3-coder:free";
 export const DEFAULT_HOUSE_NAME = "Home";
+export const DEFAULT_REALTIME_MODEL = "gpt-realtime";
+export const DEFAULT_REALTIME_VOICE = "marin";
 
 // The onboarding password is the superadmin. Superadmin signs in with this
 // reserved username; it can never be used for a standard user.
@@ -53,6 +55,8 @@ interface AppConfig {
   autoRestoreProtected?: boolean;
   tuya?: TuyaCreds;
   openrouter?: { apiKey: string; model: string; enabled?: boolean };
+  /** OpenAI key + settings for the Realtime (speech-to-speech) voice mode. */
+  openaiRealtime?: { apiKey: string; model?: string; voice?: string; enabled?: boolean };
 }
 
 /** Public (no secret) view of a user, for the settings UI. */
@@ -118,6 +122,7 @@ export function setPassword(password: string): void {
     autoRestoreProtected: existing?.autoRestoreProtected,
     tuya: existing?.tuya,
     openrouter: existing?.openrouter,
+    openaiRealtime: existing?.openaiRealtime,
   };
   write(config);
 }
@@ -425,6 +430,69 @@ export function setOpenRouter(opts: {
       // empty/undefined apiKey keeps the existing one
       apiKey: opts.apiKey ? opts.apiKey.trim() : prev.apiKey,
       model: (opts.model && opts.model.trim()) || prev.model || DEFAULT_INSIGHTS_MODEL,
+      enabled: opts.enabled !== undefined ? opts.enabled : prev.enabled,
+    },
+  });
+}
+
+// ── Realtime voice (OpenAI) ──────────────────────────────────────────────────
+
+/**
+ * OpenAI key + model/voice for the Realtime voice mode. Returns null when there
+ * is no key OR the admin disabled it — so the voice feature turns off cleanly.
+ */
+export function getOpenaiRealtime(): { apiKey: string; model: string; voice: string } | null {
+  const o = read()?.openaiRealtime;
+  if (!o?.apiKey || o.enabled === false) return null;
+  return {
+    apiKey: o.apiKey,
+    model: o.model || DEFAULT_REALTIME_MODEL,
+    voice: o.voice || DEFAULT_REALTIME_VOICE,
+  };
+}
+
+/** True if Realtime voice is usable (key present AND enabled). */
+export function isRealtimeVoiceEnabled(): boolean {
+  const o = read()?.openaiRealtime;
+  return Boolean(o?.apiKey) && o?.enabled !== false;
+}
+
+/** Non-secret view for the settings UI. */
+export function getRealtimeVoiceStatus(): {
+  hasKey: boolean;
+  enabled: boolean;
+  available: boolean;
+  model: string;
+  voice: string;
+} {
+  const o = read()?.openaiRealtime;
+  const hasKey = Boolean(o?.apiKey);
+  const enabled = o?.enabled !== false; // default on
+  return {
+    hasKey,
+    enabled,
+    available: hasKey && enabled,
+    model: o?.model || DEFAULT_REALTIME_MODEL,
+    voice: o?.voice || DEFAULT_REALTIME_VOICE,
+  };
+}
+
+export function setOpenaiRealtime(opts: {
+  apiKey?: string;
+  model?: string;
+  voice?: string;
+  enabled?: boolean;
+}): void {
+  const config = read();
+  if (!config) throw new Error("App is not onboarded yet");
+  const prev = config.openaiRealtime ?? { apiKey: "" };
+  write({
+    ...config,
+    openaiRealtime: {
+      // empty/undefined apiKey keeps the existing one
+      apiKey: opts.apiKey ? opts.apiKey.trim() : prev.apiKey,
+      model: (opts.model && opts.model.trim()) || prev.model || DEFAULT_REALTIME_MODEL,
+      voice: (opts.voice && opts.voice.trim()) || prev.voice || DEFAULT_REALTIME_VOICE,
       enabled: opts.enabled !== undefined ? opts.enabled : prev.enabled,
     },
   });
