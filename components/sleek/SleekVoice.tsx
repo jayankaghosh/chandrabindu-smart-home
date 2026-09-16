@@ -226,6 +226,13 @@ export default function SleekVoice() {
       } else if (name === "run_routine") {
         const res = await fetch(`/api/routines/${args.routineId}/run`, { method: "POST" });
         output = await res.json().catch(() => ({ ok: false }));
+      } else if (name === "remember") {
+        const res = await fetch("/api/voice/memory", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ add: args.add, remove: args.remove, scope: args.scope }),
+        });
+        output = await res.json().catch(() => ({ ok: false }));
       } else {
         output = { error: "unknown tool" };
       }

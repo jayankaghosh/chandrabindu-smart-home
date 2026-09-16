@@ -10,7 +10,8 @@
 // instructions below are only the soft first layer.
 
 import { getModel, getCatalogDevice, listRoutinesEnriched } from "./store";
-import { listProtectedControls, getOpenaiRealtime } from "./config";
+import { listProtectedControls, getOpenaiRealtime, getHouseName } from "./config";
+import { getMemoryForPrompt } from "./chatMemory";
 import { getStatusLocal } from "./local";
 
 const OPENAI_BASE = "https://api.openai.com/v1";
@@ -47,21 +48,44 @@ async function buildRoutineText(): Promise<string> {
   return routines.map((r) => `- id=${r.id} "${r.name}" (${r.actions.length} actions)`).join("\n");
 }
 
+/** Shared house memory + this user's personal memory, as prompt text. */
+function buildMemoryText(username: string): string {
+  const { core, personal } = getMemoryForPrompt(username);
+  const parts: string[] = [];
+  if (core.length) parts.push(`Shared house memory (known to everyone):\n${core.map((m) => `- ${m}`).join("\n")}`);
+  if (personal.length) parts.push(`What you remember about this user:\n${personal.map((m) => `- ${m}`).join("\n")}`);
+  return parts.length ? parts.join("\n\n") : "(nothing remembered yet)";
+}
+
 /** The natural-language contract + catalog the Realtime model runs under. */
-async function buildInstructions(): Promise<string> {
+async function buildInstructions(username: string, isAdmin: boolean): Promise<string> {
+  const { rooms } = await getModel();
+  const deviceCount = rooms.reduce((n, r) => n + r.devices.length, 0);
   const [catalog, routines] = await Promise.all([buildCatalogText(), buildRoutineText()]);
-  return `You are the voice assistant for a smart home called Chandrabindu. Speak naturally and keep replies short and friendly.
+  const memory = buildMemoryText(username);
+
+  const memoryRule = isAdmin
+    ? `MEMORY: call remember to save durable facts/preferences the user asks you to keep (a nickname for a room, a habit, their name). By default it's PRIVATE to this user. This user is the house ADMIN: only if they explicitly ask to remember something "for everyone", in "core"/"house" memory, or so all users know it, call remember with scope:"core" (shared with every user). Otherwise omit scope.`
+    : `MEMORY: call remember to save durable facts/preferences the user asks you to keep (a nickname for a room, a habit, their name). It is private to this user. Do not save one-off commands or current device states.`;
+
+  return `You are the voice assistant for a smart home called "${getHouseName()}" (${rooms.length} rooms, ${deviceCount} devices). Speak naturally and keep replies short and friendly.
 
 You can control the house and answer questions about it by calling tools:
 - set_controls: turn devices on/off or set a value (fan speed, brightness). Boolean controls take true/false; Enum controls take one of their listed values; Integer controls take a number in range.
 - get_status: read the current state of one or more devices before answering "is X on?" or reporting state.
 - run_routine: run a saved scene by its id.
+- remember: save (or remove) a durable fact to memory when the user asks you to remember something.
 
 When the user gives an instruction (e.g. "turn off the bedroom lights", "set the fan to medium"), figure out which device(s) and control code(s) they mean from the catalog and call set_controls. Do it right away, then briefly say what you did. If a request is ambiguous, ask a short clarifying question instead of guessing.
 
 HARD RULE — PROTECTED CONTROLS: never call set_controls for any control marked [PROTECTED]. Do not turn them on or off under any circumstance. If the user asks, tell them it's a protected control you can't change. (You may still report its state via get_status.)
 
+${memoryRule}
+
 Only act on controls that exist in the catalog. Never invent device ids or codes.
+
+WHAT YOU REMEMBER:
+${memory}
 
 DEVICE CATALOG:
 ${catalog}
@@ -123,6 +147,26 @@ function realtimeTools() {
         required: ["routineId"],
       },
     },
+    {
+      type: "function",
+      name: "remember",
+      description:
+        "Save durable facts to memory (or remove ones no longer true) when the user asks you to remember/forget something.",
+      parameters: {
+        type: "object",
+        properties: {
+          add: { type: "array", items: { type: "string" }, description: "New facts to remember." },
+          remove: { type: "array", items: { type: "string" }, description: "Text of remembered items to drop." },
+          scope: {
+            type: "string",
+            enum: ["user", "core"],
+            description:
+              'Where to save. "user" (default) is private to this user; "core" is shared with everyone — only valid when the house admin explicitly asks to remember something for everyone.',
+          },
+        },
+        required: [],
+      },
+    },
   ];
 }
 
@@ -137,11 +181,11 @@ export interface RealtimeSecret {
  * server-side (instructions, tools, voice, VAD, transcription). Returns null-ish
  * by throwing when voice isn't configured or OpenAI rejects the request.
  */
-export async function createRealtimeSecret(): Promise<RealtimeSecret> {
+export async function createRealtimeSecret(username: string, isAdmin: boolean): Promise<RealtimeSecret> {
   const cfg = getOpenaiRealtime();
   if (!cfg) throw new Error("Voice is not configured");
 
-  const instructions = await buildInstructions();
+  const instructions = await buildInstructions(username, isAdmin);
   const session = {
     type: "realtime",
     model: cfg.model,

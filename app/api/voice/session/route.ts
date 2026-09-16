@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { guard } from "@/lib/auth";
+import { getSession, guard } from "@/lib/auth";
 import { isRealtimeVoiceEnabled } from "@/lib/config";
 import { createRealtimeSecret } from "@/lib/voice";
 
@@ -24,7 +24,8 @@ export async function POST() {
     return NextResponse.json({ error: "Voice is not set up." }, { status: 503 });
   }
   try {
-    const secret = await createRealtimeSecret();
+    const session = getSession()!;
+    const secret = await createRealtimeSecret(session.username, session.role === "admin");
     return NextResponse.json(secret);
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 502 });

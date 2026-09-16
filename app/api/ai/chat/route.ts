@@ -40,9 +40,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "No message provided" }, { status: 400 });
   }
 
-  const username = getSession()!.username;
+  const session = getSession()!;
   try {
-    const result = await runAssistant(username, messages);
+    const result = await runAssistant(session.username, messages, session.role === "admin");
     // Flag actions whose room is locked & not unlocked for this session.
     const actions = await Promise.all(
       result.actions.map(async (a) => {

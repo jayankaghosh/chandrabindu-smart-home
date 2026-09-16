@@ -6,7 +6,7 @@ import { getOpenRouter, getHouseName } from "./config";
 import { getModel, listRoutinesEnriched, readCatalog } from "./store";
 import { getStatusLocal } from "./local";
 import { callOpenRouter, extractJson, type ChatMessage } from "./ai";
-import { readMemory, applyMemoryUpdate } from "./chatMemory";
+import { getMemoryForPrompt, applyMemoryUpdate } from "./chatMemory";
 import type { CatalogDevice, DeviceFunction } from "./types";
 
 const CONTROLLABLE = ["Boolean", "Enum", "Integer"];
@@ -136,7 +136,7 @@ Respond with ONLY a JSON object (no markdown, no code fences) in this shape:
   "reply": "a short, friendly natural-language message to the user",
   "actions": [ { "deviceId": "<id from context>", "code": "<control code from context>", "value": <true|false | "enumValue" | number> } ],
   "routines": [ { "routineId": "<id from the Saved routines list>" } ],
-  "memory": { "add": ["a durable fact or preference about THIS user worth remembering"], "remove": ["text of a remembered item that is no longer true"] }
+  "memory": { "add": ["a durable fact or preference worth remembering"], "remove": ["text of a remembered item that is no longer true"], "scope": "core" }
 }
 
 Rules:
@@ -243,6 +243,7 @@ export interface AssistantReply {
 export async function runAssistant(
   username: string,
   history: ChatMessage[],
+  isAdmin = false,
 ): Promise<AssistantReply> {
   const cfg = getOpenRouter();
   if (!cfg) {
@@ -250,15 +251,22 @@ export async function runAssistant(
   }
   // Always include current device/switch status so the assistant knows live state.
   const { text: context, index, routineIndex } = await buildContext(true);
-  const memory = readMemory(username);
+  const { core, personal } = getMemoryForPrompt(username);
   const messages: ChatMessage[] = [
     { role: "system", content: SYSTEM_PROMPT },
     { role: "system", content: `=== CONTEXT ===\n${context}` },
+    { role: "system", content: memoryInstruction(isAdmin) },
   ];
-  if (memory.length) {
+  if (core.length) {
     messages.push({
       role: "system",
-      content: `=== What you remember about this user ===\n- ${memory.join("\n- ")}`,
+      content: `=== Shared house memory (known to everyone) ===\n- ${core.join("\n- ")}`,
+    });
+  }
+  if (personal.length) {
+    messages.push({
+      role: "system",
+      content: `=== What you remember about this user ===\n- ${personal.join("\n- ")}`,
     });
   }
   messages.push(...history.slice(-8));
@@ -286,9 +294,18 @@ export async function runAssistant(
   const routines = Array.isArray(parsed.routines)
     ? validateRoutines(parsed.routines, routineIndex)
     : [];
-  // Persist any memory changes the model proposed for this user.
+  // Persist any memory changes the model proposed (scope-aware; core is
+  // honored only for the admin — see applyMemoryUpdate).
   if (parsed.memory && typeof parsed.memory === "object") {
-    applyMemoryUpdate(username, parsed.memory);
+    applyMemoryUpdate(username, parsed.memory, { isAdmin });
   }
   return { reply, actions, routines };
+}
+
+/** Role-aware guidance on memory scope, added to the system prompt each turn. */
+function memoryInstruction(isAdmin: boolean): string {
+  const base =
+    'MEMORY: use the "memory" field to remember durable, user-specific facts or preferences (a nickname for a room, a habit, a standing preference, their name). Do NOT store one-off commands, current device states, or things already remembered. "memory.remove" drops a remembered item that is no longer true. By default everything you remember is PRIVATE to this user.';
+  if (!isAdmin) return base;
+  return `${base}\nThis user is the house ADMIN. Only if they explicitly ask to remember something "for everyone", in "core"/"house" memory, or so all users know it, set "memory.scope" to "core" (shared with every user). Otherwise omit scope — keep it private to the admin.`;
 }
