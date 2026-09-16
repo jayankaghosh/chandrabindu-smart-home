@@ -94,7 +94,8 @@ export default function RoomCard({
   for (const d of room.devices) {
     const vals = statusByDevice[d.id]?.values ?? {};
     for (const f of d.functions) {
-      if (f.type === "Boolean" && vals[f.code] === true) onCount++;
+      // Protected controls (meant to stay on) don't count toward "N on".
+      if (f.type === "Boolean" && !f.protected && vals[f.code] === true) onCount++;
     }
   }
 
@@ -619,7 +620,7 @@ function DeviceGroup({
   );
   const hasProtected = controllable.some((f) => f.protected);
   const onCount = controllable.filter(
-    (f) => f.type === "Boolean" && values[f.code] === true,
+    (f) => f.type === "Boolean" && !f.protected && values[f.code] === true,
   ).length;
 
   const controlName = (code: string) =>

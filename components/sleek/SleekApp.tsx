@@ -148,7 +148,8 @@ export default function SleekApp({ role, username }: { role: "admin" | "user"; u
       for (const d of room.devices) {
         if (statusByDevice[d.id]?.reachable === false) off++;
         const vals = statusByDevice[d.id]?.values ?? {};
-        for (const f of d.functions) if (f.type === "Boolean" && vals[f.code] === true) on++;
+        // Exclude protected controls (meant to stay on) from the "on" tally.
+        for (const f of d.functions) if (f.type === "Boolean" && !f.protected && vals[f.code] === true) on++;
       }
     }
     return { onCount: on, offline: off };

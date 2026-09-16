@@ -28,7 +28,9 @@ function roomOnCount(room: Room, statusByDevice: Record<string, DeviceStatusStat
   let n = 0;
   for (const d of room.devices) {
     const vals = statusByDevice[d.id]?.values ?? {};
-    for (const f of d.functions) if (f.type === "Boolean" && vals[f.code] === true) n++;
+    // Protected controls (e.g. a modem meant to stay on) aren't user-facing
+    // toggles, so they don't count toward the room's "N on".
+    for (const f of d.functions) if (f.type === "Boolean" && !f.protected && vals[f.code] === true) n++;
   }
   return n;
 }
