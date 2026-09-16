@@ -14,6 +14,7 @@ import Insights from "../Insights";
 import SleekHome, { type Section } from "./SleekHome";
 import SleekRoomList from "./SleekRoomList";
 import SleekRoomDetail from "./SleekRoomDetail";
+import SleekRoomSwitcher from "./SleekRoomSwitcher";
 import SleekFavourites from "./SleekFavourites";
 import SleekRoutines from "./SleekRoutines";
 import SleekAutomations from "./SleekAutomations";
@@ -127,6 +128,17 @@ export default function SleekApp({ role, username }: { role: "admin" | "user"; u
     setDir(-1);
     setStack([{ k: "home" }]);
   };
+  // Jump to another room in place (replaces the current room screen), so Back
+  // still returns to the Rooms list rather than through every room peeked at.
+  const switchRoom = (roomId: string) => {
+    setStack((st) => {
+      const top = st[st.length - 1];
+      if (top.k !== "room" || top.roomId === roomId) return st;
+      const list = rooms ?? [];
+      setDir(list.findIndex((r) => r.id === roomId) >= list.findIndex((r) => r.id === top.roomId) ? 1 : -1);
+      return [...st.slice(0, -1), { k: "room", roomId }];
+    });
+  };
 
   // Home status strip figures
   const { onCount, offline } = useMemo(() => {
@@ -231,6 +243,15 @@ export default function SleekApp({ role, username }: { role: "admin" | "user"; u
           </div>
         </div>
       </header>
+
+      {/* Room switcher — jump between rooms without going back to the list. */}
+      {screen.k === "room" && (
+        <SleekRoomSwitcher
+          rooms={(rooms ?? []).map((r) => ({ id: r.id, name: r.name, locked: r.locked }))}
+          activeId={screen.roomId}
+          onSwitch={switchRoom}
+        />
+      )}
 
       {/* Screens */}
       <main className="mx-auto w-full max-w-[1400px] px-4 pb-24 pt-6 sm:px-6">
