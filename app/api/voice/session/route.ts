@@ -6,6 +6,14 @@ import { createRealtimeSecret } from "@/lib/voice";
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
+// Lightweight availability check (any signed-in user) — no secret, no OpenAI
+// call. Lets the Voice screen show a "not set up" state without minting a token.
+export async function GET() {
+  const denied = guard();
+  if (denied) return denied;
+  return NextResponse.json({ available: isRealtimeVoiceEnabled() });
+}
+
 // Mint a short-lived OpenAI Realtime ephemeral client secret for the browser's
 // WebRTC handshake. The session (persona + catalog + tools + voice) is
 // configured server-side; the raw OpenAI key never leaves the server.

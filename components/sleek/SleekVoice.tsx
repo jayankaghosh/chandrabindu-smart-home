@@ -2,47 +2,43 @@
 
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mic, Loader2, Volume2, User, Bot, MicOff } from "lucide-react";
+import { Mic, Loader2, PhoneOff, Volume2, MicOff, Sparkles } from "lucide-react";
 
-type VoiceState = "idle" | "recording" | "transcribing" | "thinking" | "speaking" | "error";
+// Hands-free voice assistant powered by OpenAI's Realtime (gpt-realtime) over
+// WebRTC. Tap Connect → talk naturally (the model listens continuously, handles
+// turn-taking and interruptions) → tap End. The model calls tools to control the
+// house; every actuation is re-validated server-side and protected controls are
+// never touched (see /api/voice/execute).
+
+type State = "idle" | "connecting" | "live" | "error";
 interface Turn {
   role: "user" | "assistant";
   content: string;
 }
 
-// Full-screen push-to-talk voice assistant (walkie-talkie): press & hold the mic
-// to speak, release to send. Pipeline: record → OpenRouter STT → existing chat
-// → auto-run any device actions → OpenRouter TTS played aloud. Pressing the mic
-// again (even mid-reply) cancels the current speech and starts a new turn.
+const OPENAI_CALLS = "https://api.openai.com/v1/realtime/calls";
+
 export default function SleekVoice() {
-  const [state, setState] = useState<VoiceState>("idle");
-  const [turns, setTurns] = useState<Turn[]>([]);
+  const [available, setAvailable] = useState<boolean | null>(null);
+  const [state, setState] = useState<State>("idle");
+  const [speaking, setSpeaking] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [micReady, setMicReady] = useState<boolean | null>(null);
+  const [turns, setTurns] = useState<Turn[]>([]);
 
-  const streamRef = useRef<MediaStream | null>(null);
-  const recRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
+  const pcRef = useRef<RTCPeerConnection | null>(null);
+  const dcRef = useRef<RTCDataChannel | null>(null);
+  const micRef = useRef<MediaStream | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const turnIdRef = useRef(0); // bumps on every new press; stale async is discarded
-  const historyRef = useRef<Turn[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Streaming transcript buffers keyed by item/response id.
+  const asstBuf = useRef<Record<string, string>>({});
 
-  // Acquire the mic once for the screen; release on leave.
   useEffect(() => {
-    let stream: MediaStream | null = null;
-    navigator.mediaDevices
-      ?.getUserMedia({ audio: true })
-      .then((s) => {
-        stream = s;
-        streamRef.current = s;
-        setMicReady(true);
-      })
-      .catch(() => setMicReady(false));
-    return () => {
-      stream?.getTracks().forEach((t) => t.stop());
-      stopAudio();
-    };
+    fetch("/api/voice/session")
+      .then((r) => (r.ok ? r.json() : { available: false }))
+      .then((d) => setAvailable(Boolean(d.available)))
+      .catch(() => setAvailable(false));
+    return () => teardown();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -50,195 +46,247 @@ export default function SleekVoice() {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [turns, state]);
 
-  function stopAudio() {
+  function pushTurn(role: "user" | "assistant", content: string) {
+    setTurns((t) => [...t, { role, content }]);
+  }
+  function updateAssistant(id: string, delta: string) {
+    asstBuf.current[id] = (asstBuf.current[id] || "") + delta;
+    const text = asstBuf.current[id];
+    setTurns((t) => {
+      const last = t[t.length - 1];
+      if (last && last.role === "assistant" && (last as any)._id === id) {
+        const copy = t.slice(0, -1);
+        return [...copy, { role: "assistant", content: text, _id: id } as any];
+      }
+      return [...t, { role: "assistant", content: text, _id: id } as any];
+    });
+  }
+
+  function teardown() {
+    try {
+      dcRef.current?.close();
+    } catch {}
+    try {
+      pcRef.current?.getSenders().forEach((s) => s.track?.stop());
+      pcRef.current?.close();
+    } catch {}
+    micRef.current?.getTracks().forEach((t) => t.stop());
     if (audioRef.current) {
       audioRef.current.pause();
-      audioRef.current.src = "";
-      audioRef.current = null;
+      audioRef.current.srcObject = null;
     }
+    pcRef.current = null;
+    dcRef.current = null;
+    micRef.current = null;
+    asstBuf.current = {};
+    setSpeaking(false);
   }
 
-  function pickMime(): string {
-    const opts = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg"];
-    for (const o of opts) if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(o)) return o;
-    return "";
-  }
-
-  function startRecording() {
-    if (!streamRef.current) return;
-    stopAudio(); // barge-in: cut off any current reply
-    const myTurn = ++turnIdRef.current; // invalidate anything in flight
+  async function connect() {
     setError(null);
-    chunksRef.current = [];
-    const mime = pickMime();
-    const rec = new MediaRecorder(streamRef.current, mime ? { mimeType: mime } : undefined);
-    rec.ondataavailable = (e) => {
-      if (e.data.size) chunksRef.current.push(e.data);
-    };
-    rec.onstop = () => {
-      const blob = new Blob(chunksRef.current, { type: rec.mimeType || "audio/webm" });
-      void process(blob, myTurn);
-    };
-    rec.start();
-    recRef.current = rec;
-    setState("recording");
-  }
-
-  function stopRecording() {
-    if (recRef.current && recRef.current.state !== "inactive") recRef.current.stop();
-  }
-
-  const alive = (myTurn: number) => myTurn === turnIdRef.current;
-
-  async function process(blob: Blob, myTurn: number) {
+    setState("connecting");
     try {
-      if (blob.size < 800) {
-        setState("idle");
-        return; // too short to be speech
-      }
-      setState("transcribing");
-      const b64 = await blobToBase64(blob);
-      if (!alive(myTurn)) return;
-      const fmt = /mp4|m4a/.test(blob.type) ? "m4a" : /ogg/.test(blob.type) ? "ogg" : "webm";
-      const tr = await fetch("/api/voice/transcribe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ audio: b64, format: fmt }),
-      });
-      const trd = await tr.json().catch(() => ({}));
-      if (!alive(myTurn)) return;
-      if (!tr.ok || !trd.text) {
-        setError(trd.error || "Didn't catch that — try again.");
-        setState("idle");
+      // 1) Mic
+      let mic: MediaStream;
+      try {
+        mic = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch {
+        setError("Microphone blocked — allow mic access and try again.");
+        setState("error");
         return;
       }
-      const userText: string = trd.text;
-      historyRef.current = [...historyRef.current, { role: "user", content: userText }];
-      setTurns([...historyRef.current]);
+      micRef.current = mic;
 
-      setState("thinking");
-      const chat = await fetch("/api/ai/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: historyRef.current.slice(-8) }),
-      });
-      const cd = await chat.json().catch(() => ({}));
-      if (!alive(myTurn)) return;
-      if (!chat.ok) {
-        setError(cd.error || "The assistant failed to reply.");
-        setState("idle");
+      // 2) Ephemeral session token (server-configured session)
+      const sres = await fetch("/api/voice/session", { method: "POST" });
+      const sdata = await sres.json().catch(() => ({}));
+      if (!sres.ok || !sdata.clientSecret) {
+        teardown();
+        setError(sdata.error || "Voice isn't set up.");
+        setState("error");
         return;
       }
-      const reply: string = cd.reply || "Done.";
-      historyRef.current = [...historyRef.current, { role: "assistant", content: reply }];
-      setTurns([...historyRef.current]);
 
-      // Auto-run any device actions / routines the assistant proposed.
-      await executeAll(cd.actions, cd.routines);
-      if (!alive(myTurn)) return;
-
-      // Speak the reply.
-      setState("speaking");
-      const sp = await fetch("/api/voice/speak", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: reply }),
-      });
-      if (!alive(myTurn)) return;
-      if (!sp.ok) {
-        setState("idle");
-        return;
-      }
-      const buf = await sp.blob();
-      if (!alive(myTurn)) return;
-      const audio = new Audio(URL.createObjectURL(buf));
+      // 3) WebRTC peer
+      const pc = new RTCPeerConnection();
+      pcRef.current = pc;
+      const audio = new Audio();
+      audio.autoplay = true;
       audioRef.current = audio;
-      audio.onended = () => {
-        if (alive(myTurn)) setState("idle");
+      pc.ontrack = (e) => {
+        audio.srcObject = e.streams[0];
       };
-      audio.play().catch(() => {
-        if (alive(myTurn)) setState("idle");
+      pc.addTrack(mic.getAudioTracks()[0], mic);
+
+      const dc = pc.createDataChannel("oai-events");
+      dcRef.current = dc;
+      dc.onmessage = (e) => handleEvent(e.data);
+
+      // 4) SDP offer/answer with OpenAI
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      const answer = await fetch(`${OPENAI_CALLS}?model=${encodeURIComponent(sdata.model)}`, {
+        method: "POST",
+        body: offer.sdp,
+        headers: {
+          Authorization: `Bearer ${sdata.clientSecret}`,
+          "Content-Type": "application/sdp",
+        },
       });
-    } catch (e) {
-      if (alive(myTurn)) {
-        setError((e as Error).message);
-        setState("idle");
+      if (!answer.ok) {
+        teardown();
+        setError("Couldn't connect to the voice service.");
+        setState("error");
+        return;
       }
+      const answerSdp = await answer.text();
+      await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
+      setState("live");
+    } catch (e) {
+      teardown();
+      setError((e as Error).message);
+      setState("error");
     }
   }
 
-  async function executeAll(actions: any[], routines: any[]) {
+  function end() {
+    teardown();
+    setState("idle");
+  }
+
+  // ── Realtime event handling ────────────────────────────────────────────────
+  function handleEvent(raw: string) {
+    let ev: any;
     try {
-      if (Array.isArray(actions) && actions.length) {
-        await fetch("/api/ai/execute", {
+      ev = JSON.parse(raw);
+    } catch {
+      return;
+    }
+    const type: string = ev.type || "";
+
+    // User speech transcript (final)
+    if (type.includes("input_audio_transcription") && (type.endsWith(".completed") || type.endsWith(".done"))) {
+      const text = ev.transcript || ev.text;
+      if (text) pushTurn("user", text);
+      return;
+    }
+    // Assistant spoken text — streamed (handle old + new event names)
+    if (/audio_transcript\.delta$/.test(type) || type === "response.output_text.delta") {
+      const id = ev.response_id || ev.item_id || "cur";
+      if (typeof ev.delta === "string") updateAssistant(id, ev.delta);
+      setSpeaking(true);
+      return;
+    }
+    if (/audio_transcript\.done$/.test(type) || type === "response.output_text.done") {
+      return;
+    }
+    if (type === "output_audio_buffer.started" || type === "response.output_audio.started") {
+      setSpeaking(true);
+      return;
+    }
+    if (type === "output_audio_buffer.stopped" || type === "response.done") {
+      setSpeaking(false);
+      return;
+    }
+    // Function/tool call
+    if (type === "response.function_call_arguments.done") {
+      void handleToolCall(ev.name, ev.call_id, ev.arguments);
+      return;
+    }
+    if (type === "response.output_item.done" && ev.item?.type === "function_call") {
+      void handleToolCall(ev.item.name, ev.item.call_id, ev.item.arguments);
+      return;
+    }
+    if (type === "error") {
+      setError(ev.error?.message || "Voice error");
+    }
+  }
+
+  async function handleToolCall(name: string, callId: string, argsJson: string) {
+    let args: any = {};
+    try {
+      args = JSON.parse(argsJson || "{}");
+    } catch {}
+    let output: any = { ok: false };
+    try {
+      if (name === "set_controls") {
+        const res = await fetch("/api/voice/execute", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            actions: actions.map((a) => ({ deviceId: a.deviceId, code: a.code, value: a.value })),
-          }),
+          body: JSON.stringify({ actions: args.actions ?? [] }),
         });
+        output = await res.json().catch(() => ({ ok: 0 }));
+      } else if (name === "get_status") {
+        const res = await fetch("/api/voice/status", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ deviceIds: args.deviceIds ?? [] }),
+        });
+        output = await res.json().catch(() => ({ devices: [] }));
+      } else if (name === "run_routine") {
+        const res = await fetch(`/api/routines/${args.routineId}/run`, { method: "POST" });
+        output = await res.json().catch(() => ({ ok: false }));
+      } else {
+        output = { error: "unknown tool" };
       }
-      for (const r of Array.isArray(routines) ? routines : []) {
-        await fetch(`/api/routines/${r.routineId}/run`, { method: "POST" });
-      }
-    } catch {
-      /* best-effort; the spoken reply still plays */
+    } catch (e) {
+      output = { error: (e as Error).message };
     }
+    // Return the result to the model, then ask it to continue speaking.
+    sendEvent({
+      type: "conversation.item.create",
+      item: { type: "function_call_output", call_id: callId, output: JSON.stringify(output) },
+    });
+    sendEvent({ type: "response.create" });
   }
 
-  // Press-and-hold handlers.
-  const onDown = (e: React.PointerEvent) => {
-    e.preventDefault();
-    if (micReady === false) return;
-    startRecording();
-  };
-  const onUp = () => {
-    if (state === "recording") stopRecording();
-  };
+  function sendEvent(obj: unknown) {
+    const dc = dcRef.current;
+    if (dc && dc.readyState === "open") dc.send(JSON.stringify(obj));
+  }
 
-  const busy = state === "transcribing" || state === "thinking";
-  const statusText =
-    micReady === false
-      ? "Microphone blocked — allow mic access and reload."
-      : state === "recording"
-        ? "Listening… release to send"
-        : state === "transcribing"
-          ? "Transcribing…"
-          : state === "thinking"
-            ? "Thinking…"
-            : state === "speaking"
-              ? "Speaking… (hold to interrupt)"
-              : turns.length
-                ? "Hold to speak again"
-                : "Hold the mic and speak";
+  // ── UI ─────────────────────────────────────────────────────────────────────
+  if (available === false) {
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 text-center text-slate-500 dark:text-slate-400">
+        <span className="flex h-16 w-16 items-center justify-center rounded-3xl bg-slate-200/70 dark:bg-white/10">
+          <MicOff size={30} />
+        </span>
+        <p className="text-lg font-semibold text-slate-700 dark:text-slate-200">Voice isn't set up</p>
+        <p className="max-w-xs text-sm">An admin can add an OpenAI key in Settings → Voice to enable hands-free voice control.</p>
+      </div>
+    );
+  }
+
+  const connecting = state === "connecting";
+  const live = state === "live";
+  const statusText = connecting
+    ? "Connecting…"
+    : live
+      ? speaking
+        ? "Speaking…"
+        : "Listening… just talk"
+      : state === "error"
+        ? error || "Something went wrong"
+        : "Tap connect and talk to your home";
 
   return (
     <div className="flex min-h-[68vh] flex-col">
-      {/* Conversation */}
+      {/* Transcript */}
       <div ref={scrollRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto pb-6">
         {turns.length === 0 && (
-          <div className="flex h-full min-h-[30vh] flex-col items-center justify-center text-center text-slate-500 dark:text-slate-400">
+          <div className="flex h-full min-h-[28vh] flex-col items-center justify-center gap-2 text-center text-slate-500 dark:text-slate-400">
+            <Sparkles size={26} className="opacity-60" />
             <p className="max-w-xs text-base">
-              Ask about your home or give a command — e.g. “turn off the bedroom lights”.
+              Hands-free voice — try “turn off the bedroom lights” or “is the kitchen light on?”
             </p>
           </div>
         )}
         {turns.map((t, i) => (
-          <div key={i} className={`flex gap-2.5 ${t.role === "user" ? "flex-row-reverse" : ""}`}>
-            <span
-              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
-                t.role === "user"
-                  ? "bg-brand-500/15 text-brand-600 dark:bg-white/10 dark:text-slate-200"
-                  : "bg-slate-200/70 text-slate-600 dark:bg-white/10 dark:text-slate-200"
-              }`}
-            >
-              {t.role === "user" ? <User size={17} /> : <Bot size={17} />}
-            </span>
+          <div key={i} className={`flex ${t.role === "user" ? "justify-end" : "justify-start"}`}>
             <div
-              className={`max-w-[80%] rounded-3xl px-4 py-3 text-[15px] leading-relaxed ${
-                t.role === "user"
-                  ? "bg-brand-500 text-white dark:bg-white dark:text-slate-900"
-                  : "card"
+              className={`max-w-[82%] rounded-3xl px-4 py-3 text-[15px] leading-relaxed ${
+                t.role === "user" ? "bg-brand-500 text-white dark:bg-white dark:text-slate-900" : "card"
               }`}
             >
               {t.content}
@@ -247,14 +295,15 @@ export default function SleekVoice() {
         ))}
       </div>
 
-      {error && <p className="mb-2 text-center text-sm text-rose-500">{error}</p>}
+      {error && live === false && state !== "error" && (
+        <p className="mb-2 text-center text-sm text-rose-500">{error}</p>
+      )}
 
-      {/* Mic */}
-      <div className="flex shrink-0 flex-col items-center gap-4 pt-2">
+      {/* Orb + control */}
+      <div className="flex shrink-0 flex-col items-center gap-5 pt-2">
         <div className="relative flex h-44 w-44 items-center justify-center">
-          {/* pulse rings */}
           <AnimatePresence>
-            {(state === "recording" || state === "speaking") && (
+            {live && (
               <>
                 {[0, 1, 2].map((i) => (
                   <motion.span
@@ -262,60 +311,50 @@ export default function SleekVoice() {
                     initial={{ scale: 0.8, opacity: 0.5 }}
                     animate={{ scale: 1.8, opacity: 0 }}
                     exit={{ opacity: 0 }}
-                    transition={{ duration: 1.6, repeat: Infinity, delay: i * 0.5, ease: "easeOut" }}
-                    className={`absolute h-32 w-32 rounded-full ${
-                      state === "recording" ? "bg-rose-500/30" : "bg-sky-500/30"
-                    }`}
+                    transition={{ duration: 1.8, repeat: Infinity, delay: i * 0.5, ease: "easeOut" }}
+                    className={`absolute h-32 w-32 rounded-full ${speaking ? "bg-sky-500/30" : "bg-emerald-500/30"}`}
                   />
                 ))}
               </>
             )}
           </AnimatePresence>
 
-          <motion.button
-            onPointerDown={onDown}
-            onPointerUp={onUp}
-            onPointerLeave={onUp}
-            onContextMenu={(e) => e.preventDefault()}
-            disabled={micReady === false || busy}
-            animate={{ scale: state === "recording" ? 1.08 : 1 }}
-            whileTap={{ scale: 1.04 }}
-            className={`relative z-10 flex h-32 w-32 select-none items-center justify-center rounded-full text-white shadow-2xl transition-colors disabled:opacity-60 ${
-              micReady === false
+          <motion.div
+            animate={{ scale: live ? 1.05 : 1 }}
+            className={`relative z-10 flex h-32 w-32 items-center justify-center rounded-full text-white shadow-2xl ${
+              connecting
                 ? "bg-slate-400"
-                : state === "recording"
-                  ? "bg-gradient-to-br from-rose-500 to-red-600"
-                  : state === "speaking"
+                : live
+                  ? speaking
                     ? "bg-gradient-to-br from-sky-500 to-cyan-600"
-                    : "bg-gradient-to-br from-brand-500 to-brand-400 dark:from-white dark:to-white dark:text-slate-900"
+                    : "bg-gradient-to-br from-emerald-500 to-teal-600"
+                  : "bg-gradient-to-br from-brand-500 to-brand-400 dark:from-white dark:to-white dark:text-slate-900"
             }`}
-            style={{ WebkitTouchCallout: "none", touchAction: "none" }}
           >
-            {busy ? (
+            {connecting ? (
               <Loader2 size={44} className="animate-spin" />
-            ) : state === "speaking" ? (
+            ) : live && speaking ? (
               <Volume2 size={44} />
-            ) : micReady === false ? (
-              <MicOff size={44} />
             ) : (
               <Mic size={44} />
             )}
-          </motion.button>
+          </motion.div>
         </div>
+
         <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{statusText}</p>
+
+        {live ? (
+          <button onClick={end} className="btn-ghost !px-6 text-rose-500">
+            <PhoneOff size={16} />
+            End
+          </button>
+        ) : (
+          <button onClick={connect} disabled={connecting || available === null} className="btn-primary !px-8 !py-3.5 text-base">
+            {connecting ? <Loader2 size={18} className="animate-spin" /> : <Mic size={18} />}
+            {connecting ? "Connecting…" : "Connect"}
+          </button>
+        )}
       </div>
     </div>
   );
-}
-
-function blobToBase64(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const s = String(reader.result || "");
-      resolve(s.slice(s.indexOf(",") + 1)); // strip data:...;base64,
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
 }
