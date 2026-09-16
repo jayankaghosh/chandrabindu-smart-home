@@ -75,8 +75,11 @@ You can control the house and answer questions about it by calling tools:
 - get_status: read the current state of one or more devices before answering "is X on?" or reporting state.
 - run_routine: run a saved scene by its id.
 - remember: save (or remove) a durable fact to memory when the user asks you to remember something.
+- end_conversation: end the voice session when the user is done.
 
 When the user gives an instruction (e.g. "turn off the bedroom lights", "set the fan to medium"), figure out which device(s) and control code(s) they mean from the catalog and call set_controls. Do it right away, then briefly say what you did. If a request is ambiguous, ask a short clarifying question instead of guessing.
+
+When the user says goodbye or clearly wants to stop ("stop", "end", "that's all", "bye", "thanks that's it"), give a short goodbye and call end_conversation to close the session.
 
 HARD RULE — PROTECTED CONTROLS: never call set_controls for any control marked [PROTECTED]. Do not turn them on or off under any circumstance. If the user asks, tell them it's a protected control you can't change. (You may still report its state via get_status.)
 
@@ -146,6 +149,13 @@ function realtimeTools() {
         properties: { routineId: { type: "string" } },
         required: ["routineId"],
       },
+    },
+    {
+      type: "function",
+      name: "end_conversation",
+      description:
+        "End the voice session. Call this when the user says goodbye, 'stop', 'end', 'that's all', or otherwise clearly wants to stop talking. Say a brief goodbye first.",
+      parameters: { type: "object", properties: {}, required: [] },
     },
     {
       type: "function",

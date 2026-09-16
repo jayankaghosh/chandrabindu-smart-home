@@ -39,6 +39,10 @@ export default function SleekVoice() {
   const activeResponse = useRef(false);
   const toolPromises = useRef<Promise<void>[]>([]);
   const toolHandled = useRef(false);
+  const endRequested = useRef(false); // model called end_conversation
+  const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const IDLE_MS = 10_000; // end the session after this much silence
 
   useEffect(() => {
     fetch("/api/voice/session")
@@ -89,6 +93,11 @@ export default function SleekVoice() {
     activeResponse.current = false;
     toolHandled.current = false;
     toolPromises.current = [];
+    endRequested.current = false;
+    if (idleTimer.current) {
+      clearTimeout(idleTimer.current);
+      idleTimer.current = null;
+    }
     setSpeaking(false);
   }
 
@@ -152,6 +161,7 @@ export default function SleekVoice() {
       const answerSdp = await answer.text();
       await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
       setState("live");
+      bumpIdle();
     } catch (e) {
       teardown();
       setError((e as Error).message);
@@ -159,9 +169,17 @@ export default function SleekVoice() {
     }
   }
 
-  function end() {
+  function end(reason?: string) {
     teardown();
     setState("idle");
+    setError(reason ?? null);
+  }
+
+  // Reset the inactivity timer on any activity; fire end() after IDLE_MS of silence.
+  function bumpIdle() {
+    if (idleTimer.current) clearTimeout(idleTimer.current);
+    if (!pcRef.current) return; // only while connected
+    idleTimer.current = setTimeout(() => end("Ended after a while with no activity."), IDLE_MS);
   }
 
   // ── Realtime event handling ────────────────────────────────────────────────
@@ -173,6 +191,7 @@ export default function SleekVoice() {
       return;
     }
     const type: string = ev.type || "";
+    bumpIdle(); // any event = activity; reset the inactivity timer
 
     // User speech transcript (final)
     if (type.includes("input_audio_transcription") && (type.endsWith(".completed") || type.endsWith(".done"))) {
@@ -202,6 +221,8 @@ export default function SleekVoice() {
     }
     if (type === "output_audio_buffer.stopped") {
       setSpeaking(false);
+      // The model asked to end — tear down once its goodbye has finished playing.
+      if (endRequested.current) setTimeout(() => end(), 300);
       return;
     }
     if (type === "response.done") {
@@ -222,6 +243,19 @@ export default function SleekVoice() {
     // Function/tool call — execute + submit output now; the reply is triggered
     // from response.done (never send response.create while one is active).
     if (type === "response.function_call_arguments.done") {
+      if (ev.name === "end_conversation") {
+        // Ack the call, flag the session to end after the goodbye audio; no follow-up.
+        endRequested.current = true;
+        sendEvent({
+          type: "conversation.item.create",
+          item: { type: "function_call_output", call_id: ev.call_id, output: '{"ok":true}' },
+        });
+        // Fallback in case no audio plays after the tool call.
+        setTimeout(() => {
+          if (endRequested.current) end();
+        }, 4000);
+        return;
+      }
       toolHandled.current = true;
       toolPromises.current.push(handleToolCall(ev.name, ev.call_id, ev.arguments));
       return;
@@ -380,7 +414,7 @@ export default function SleekVoice() {
         <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{statusText}</p>
 
         {live ? (
-          <button onClick={end} className="btn-ghost !px-6 text-rose-500">
+          <button onClick={() => end()} className="btn-ghost !px-6 text-rose-500">
             <PhoneOff size={16} />
             End
           </button>
