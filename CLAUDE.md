@@ -216,13 +216,28 @@ real time when the gateway is up.
   opening the dashboard afterwards gets fast reads. Optional `HEARTBEAT_SECRET`
   (header `x-heartbeat-secret` or `?key=`); open if unset. Always returns HTTP
   200 with `{ok,status: ok|degraded|down, reachable,total,durationMs,timestamp,devices}`.
-- **Voice mode** (Sleek only, `SleekVoice.tsx`, `/api/voice/transcribe`,
-  `/api/voice/speak`): full-screen push-to-talk (walkie-talkie: hold mic to
-  speak, release = done). MediaRecorder → OpenRouter STT → `/api/ai/chat` →
-  auto-execute actions → OpenRouter TTS reply. Barge-in: pressing mic mid-reply
-  cancels playback (`turnIdRef`). STT default `openai/whisper-large-v3`; TTS
-  default `x-ai/grok-voice-tts-1.0` voice `Eve` (env-overridable). States:
-  idle/recording/transcribing/thinking/speaking/error.
+- **Voice mode** (Sleek only, `SleekVoice.tsx`, `lib/voice.ts`, `/api/voice/*`):
+  **hands-free speech-to-speech via OpenAI `gpt-realtime` over WebRTC** (NOT
+  OpenRouter — Realtime is OpenAI-only). Tap Connect → mic → the browser mints a
+  ~120s ephemeral token (`POST /api/voice/session`, which server-side builds the
+  session: persona + a compact device/routine **catalog** + the hard "never
+  actuate protected controls" rule + tool schemas), does a WebRTC SDP exchange
+  with `POST https://api.openai.com/v1/realtime/calls`, and talks over the
+  `oai-events` data channel. The model calls tools it maps itself from the
+  catalog: `set_controls` → `POST /api/voice/execute`, `get_status` →
+  `POST /api/voice/status`, `run_routine` → `POST /api/routines/[id]/run`.
+  Config in Settings → **Voice (Realtime)** (`config.json#openaiRealtime`:
+  key/model/voice/enabled; getters in `lib/config.ts`; admin API
+  `GET/PUT /api/voice/config`). Default model `gpt-realtime`, voice `marin`.
+  - ⚠️ **Protection is enforced server-side, not by the model.**
+    `/api/voice/execute` re-validates every action against the catalog and
+    **always skips protected controls (for every role)** + locked rooms — the
+    model's instruction to avoid protected controls is only the soft first layer.
+  - The raw OpenAI key never leaves the server; the browser holds only the
+    ephemeral token. Old OpenRouter `/api/voice/transcribe` + `/speak` were
+    removed. Live audio can't be tested headlessly (no mic in the Browser pane);
+    the WebRTC + tool loop was verified end-to-end by driving the data channel
+    with a text message.
 
 ---
 
@@ -308,7 +323,7 @@ Thin Expo Android WebView wrapper. On launch it GETs `/api/metadata`, checks
 | `GATEWAY_SECRET` | app + gateway | Shared secret for gateway HTTP/SSE |
 | `GATEWAY_PORT` / `GATEWAY_HOST` | gateway | Default 4000 / 127.0.0.1 |
 | `HEARTBEAT_SECRET` | app | Optional heartbeat auth |
-| `STT_MODEL` / `TTS_MODEL` / `TTS_VOICE` | app | Override voice models (defaults in §8) |
+| OpenAI Realtime key/model/voice | app | Voice mode — set in Settings → Voice, stored in `config.json#openaiRealtime` (no env var) |
 | `TELEGRAM_BOT_TOKEN`, … | bot | See `telegram-bot/README.md` |
 
 There is no required `.env` for the base app — onboarding writes `config.json`.
