@@ -17,27 +17,31 @@ import { getStatusLocal } from "./local";
 const OPENAI_BASE = "https://api.openai.com/v1";
 const CONTROLLABLE = ["Boolean", "Enum", "Integer"];
 
-/** A compact, model-readable catalog: rooms → devices (id) → controllable codes. */
+// A compact, model-readable catalog grouped by room. Controls are on/off unless
+// annotated (Enum options in parens, or an Integer min-max range); [P] = protected.
+// Terser than one line per device to keep the (cached) prompt small.
 async function buildCatalogText(): Promise<string> {
   const { rooms } = await getModel();
   const protectedSet = new Set(listProtectedControls().map((p) => `${p.deviceId}:${p.code}`));
   const lines: string[] = [];
   for (const room of rooms) {
+    const devLines: string[] = [];
     for (const d of room.devices) {
       if (d.bluetooth) continue; // can't control BLE over the LAN
       const controls = d.functions.filter((f) => CONTROLLABLE.includes(f.type));
       if (controls.length === 0) continue;
-      const ctlText = controls
+      const ctl = controls
         .map((f) => {
-          const prot = protectedSet.has(`${d.id}:${f.code}`) ? " [PROTECTED]" : "";
-          let dom = f.type;
-          if (f.type === "Enum" && f.range?.length) dom = `Enum(${f.range.join("/")})`;
-          if (f.type === "Integer") dom = `Integer(${f.min ?? 0}-${f.max ?? 100})`;
-          return `${f.code}="${f.name}" ${dom}${prot}`;
+          const prot = protectedSet.has(`${d.id}:${f.code}`) ? "[P]" : "";
+          let ann = "";
+          if (f.type === "Enum" && f.range?.length) ann = `(${f.range.join("/")})`;
+          else if (f.type === "Integer") ann = `(${f.min ?? 0}-${f.max ?? 100})`;
+          return `${f.code}=${f.name}${ann}${prot}`;
         })
         .join(", ");
-      lines.push(`- Room "${room.name}" · device "${d.name}" id=${d.id} · controls: ${ctlText}`);
+      devLines.push(`  ${d.name} [${d.id}]: ${ctl}`);
     }
+    if (devLines.length) lines.push(`${room.name}:\n${devLines.join("\n")}`);
   }
   return lines.join("\n");
 }
@@ -68,7 +72,7 @@ async function buildInstructions(username: string, isAdmin: boolean): Promise<st
     ? `MEMORY: call remember to save durable facts/preferences the user asks you to keep (a nickname for a room, a habit, their name). By default it's PRIVATE to this user. This user is the house ADMIN: only if they explicitly ask to remember something "for everyone", in "core"/"house" memory, or so all users know it, call remember with scope:"core" (shared with every user). Otherwise omit scope.`
     : `MEMORY: call remember to save durable facts/preferences the user asks you to keep (a nickname for a room, a habit, their name). It is private to this user. Do not save one-off commands or current device states.`;
 
-  return `You are the voice assistant for a smart home called "${getHouseName()}" (${rooms.length} rooms, ${deviceCount} devices). Speak naturally and keep replies short and friendly.
+  return `You are the voice assistant for a smart home called "${getHouseName()}" (${rooms.length} rooms, ${deviceCount} devices). Be very concise: reply in one short sentence, no filler, and don't restate the request or list devices back.
 
 You can control the house and answer questions about it by calling tools:
 - set_controls: turn devices on/off or set a value (fan speed, brightness). Boolean controls take true/false; Enum controls take one of their listed values; Integer controls take a number in range.
@@ -81,7 +85,7 @@ When the user gives an instruction (e.g. "turn off the bedroom lights", "set the
 
 When the user says goodbye or clearly wants to stop ("stop", "end", "that's all", "bye", "thanks that's it"), give a short goodbye and call end_conversation to close the session.
 
-HARD RULE — PROTECTED CONTROLS: never call set_controls for any control marked [PROTECTED]. Do not turn them on or off under any circumstance. If the user asks, tell them it's a protected control you can't change. (You may still report its state via get_status.)
+HARD RULE — PROTECTED CONTROLS: never call set_controls for any control marked [P]. Do not turn them on or off under any circumstance. If the user asks, tell them it's a protected control you can't change. (You may still report its state via get_status.)
 
 ${memoryRule}
 
@@ -90,7 +94,7 @@ Only act on controls that exist in the catalog. Never invent device ids or codes
 WHAT YOU REMEMBER:
 ${memory}
 
-DEVICE CATALOG:
+DEVICE CATALOG (grouped by room; each line "DeviceName [deviceId]: code=Name, ...". Controls are on/off unless annotated with Enum options in parens or an Integer range; [P] = protected):
 ${catalog}
 
 ROUTINES:
@@ -203,10 +207,23 @@ export async function createRealtimeSecret(username: string, isAdmin: boolean): 
     instructions,
     tools: realtimeTools(),
     tool_choice: "auto",
+    // Cap spoken replies — the model is told to be terse; this stops it from
+    // ever running long (long audio replies are the priciest tokens).
+    max_output_tokens: 400,
     audio: {
       input: {
         transcription: { model: "gpt-4o-mini-transcribe" },
-        turn_detection: { type: "server_vad", create_response: true, interrupt_response: true },
+        // Reduce spurious turns (each turn = more tokens): ignore background
+        // noise and require a clear pause before responding.
+        noise_reduction: { type: "near_field" },
+        turn_detection: {
+          type: "server_vad",
+          threshold: 0.6,
+          prefix_padding_ms: 300,
+          silence_duration_ms: 600,
+          create_response: true,
+          interrupt_response: true,
+        },
       },
       output: { voice: cfg.voice },
     },
