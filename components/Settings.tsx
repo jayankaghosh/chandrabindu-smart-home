@@ -18,6 +18,7 @@ import {
   Cpu,
   Palette,
   ShieldAlert,
+  Mic,
 } from "lucide-react";
 import { REGIONS } from "@/lib/regions";
 import ManualDeviceForm from "./ManualDeviceForm";
@@ -56,6 +57,21 @@ export default function Settings({ isAdmin }: { isAdmin: boolean }) {
   const [autoRestore, setAutoRestore] = useState<boolean | null>(null);
   const [togglingAutoRestore, setTogglingAutoRestore] = useState(false);
 
+  // Realtime voice (OpenAI)
+  const [voice, setVoice] = useState<{
+    hasKey: boolean;
+    enabled: boolean;
+    available: boolean;
+    model: string;
+    voice: string;
+  } | null>(null);
+  const [voKey, setVoKey] = useState("");
+  const [voModel, setVoModel] = useState("");
+  const [voVoice, setVoVoice] = useState("");
+  const [savingVo, setSavingVo] = useState(false);
+  const [voMsg, setVoMsg] = useState<string | null>(null);
+  const [togglingVoice, setTogglingVoice] = useState(false);
+
   const [creds, setCreds] = useState<{
     hasCreds: boolean;
     accessId?: string;
@@ -83,6 +99,54 @@ export default function Settings({ isAdmin }: { isAdmin: boolean }) {
     setAi(data);
     if (data.model) setOrModel(data.model);
   }, []);
+
+  const loadVoice = useCallback(async () => {
+    const res = await fetch("/api/voice/config");
+    if (!res.ok) return;
+    const data = await res.json();
+    setVoice(data);
+    if (data.model) setVoModel(data.model);
+    if (data.voice) setVoVoice(data.voice);
+  }, []);
+
+  async function saveVoice(payload: { apiKey?: string; model?: string; voice?: string; enabled?: boolean }) {
+    const res = await fetch("/api/voice/config", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed");
+    setVoice(data);
+    return data;
+  }
+
+  async function saveVoiceForm(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingVo(true);
+    setVoMsg(null);
+    try {
+      await saveVoice({ apiKey: voKey || undefined, model: voModel || undefined, voice: voVoice || undefined });
+      setVoKey("");
+      setVoMsg("Saved.");
+    } catch (e2) {
+      setVoMsg((e2 as Error).message);
+    } finally {
+      setSavingVo(false);
+    }
+  }
+
+  async function toggleVoice(next: boolean) {
+    setTogglingVoice(true);
+    setVoMsg(null);
+    try {
+      await saveVoice({ enabled: next });
+    } catch (e2) {
+      setVoMsg((e2 as Error).message);
+    } finally {
+      setTogglingVoice(false);
+    }
+  }
 
   async function toggleAi(next: boolean) {
     setTogglingAi(true);
@@ -137,7 +201,8 @@ export default function Settings({ isAdmin }: { isAdmin: boolean }) {
     loadAi();
     loadHouse();
     loadAutoRestore();
-  }, [isAdmin, loadCreds, loadAi, loadHouse, loadAutoRestore]);
+    loadVoice();
+  }, [isAdmin, loadCreds, loadAi, loadHouse, loadAutoRestore, loadVoice]);
 
   async function saveHouse(e: React.FormEvent) {
     e.preventDefault();
@@ -504,6 +569,75 @@ export default function Settings({ isAdmin }: { isAdmin: boolean }) {
               Save
             </button>
             {orMsg && <p className="text-sm text-slate-600 dark:text-slate-300">{orMsg}</p>}
+          </form>
+        </Section>
+
+        {/* Voice (Realtime) */}
+        <Section icon={<Mic size={16} />} title="Voice (Realtime)">
+          <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
+            Hands-free voice control in the Sleek theme, powered by OpenAI's
+            realtime model. Needs a separate OpenAI API key (it can't run through
+            OpenRouter). The key stays on the server; the browser only gets a
+            short-lived token.
+          </p>
+
+          {/* Enable / disable toggle */}
+          <div className="mb-4 flex items-center justify-between rounded-xl border border-white/60 bg-white/40 px-3.5 py-3 dark:border-white/10 dark:bg-white/[0.05]">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-slate-800 dark:text-slate-200">Voice mode</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {!voice?.hasKey
+                  ? "Add an OpenAI key below to enable."
+                  : voice.available
+                    ? `On · model ${voice.model}, voice ${voice.voice}`
+                    : "Off"}
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={Boolean(voice?.available)}
+              disabled={!voice?.hasKey || togglingVoice}
+              onClick={() => toggleVoice(!voice?.enabled)}
+              className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
+                voice?.available ? "bg-brand-500" : "bg-slate-300 dark:bg-slate-600"
+              }`}
+              title={voice?.hasKey ? "Toggle voice mode" : "Add a key first"}
+            >
+              <span
+                className={`absolute left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                  voice?.available ? "translate-x-5" : "translate-x-0"
+                }`}
+              />
+            </button>
+          </div>
+
+          <form onSubmit={saveVoiceForm} className="space-y-3">
+            <input
+              value={voKey}
+              onChange={(e) => setVoKey(e.target.value)}
+              className="field"
+              placeholder={voice?.hasKey ? "OpenAI API key (re-enter to change)" : "OpenAI API key (sk-…)"}
+            />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <input
+                value={voModel}
+                onChange={(e) => setVoModel(e.target.value)}
+                className="field"
+                placeholder="Model (e.g. gpt-realtime)"
+              />
+              <input
+                value={voVoice}
+                onChange={(e) => setVoVoice(e.target.value)}
+                className="field"
+                placeholder="Voice (e.g. marin)"
+              />
+            </div>
+            <button type="submit" disabled={savingVo || (!voKey && !voModel && !voVoice)} className="btn-primary">
+              {savingVo ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}
+              Save
+            </button>
+            {voMsg && <p className="text-sm text-slate-600 dark:text-slate-300">{voMsg}</p>}
           </form>
         </Section>
 
