@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Star, ShieldAlert, X, Check } from "lucide-react";
+import { Star, ShieldAlert, Ban, X, Check } from "lucide-react";
 import type { DeviceFunction } from "@/lib/types";
 import { controlKind, iconForControl, KIND_ON_GRADIENT, KIND_GLOW } from "@/lib/icons";
 import { enumLabel, isOn, valueLabel } from "./labels";
@@ -142,6 +142,18 @@ export default function SleekControlTile({
               className="w-full"
             />
           </div>
+        )}
+
+        {/* Protected badge — a forbidden symbol marking a control that
+            shouldn't be toggled (non-admins can't; admins must confirm). */}
+        {isProtected && (
+          <span
+            title="Protected control"
+            aria-label="Protected control"
+            className="pointer-events-none absolute -left-1.5 -top-1.5 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-md ring-1 ring-black/5 dark:bg-slate-800 dark:ring-white/10"
+          >
+            <Ban size={16} className="text-red-500" strokeWidth={2.5} />
+          </span>
         )}
 
         {/* Favourite star */}
