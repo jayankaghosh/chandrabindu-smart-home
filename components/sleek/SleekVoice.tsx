@@ -42,6 +42,8 @@ export default function SleekVoice() {
   const endRequested = useRef(false); // model called end_conversation
   const endAfterResponse = useRef(false); // idle=0: end once the reply finishes
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const speakingRef = useRef(false); // assistant audio is playing
+  const userSpeaking = useRef(false); // user is talking (server VAD)
   // Auto-end policy from server config: >0 = end after N seconds of silence;
   // 0 = end right after each reply (one-shot).
   const idleSecRef = useRef(10);
@@ -97,6 +99,8 @@ export default function SleekVoice() {
     toolPromises.current = [];
     endRequested.current = false;
     endAfterResponse.current = false;
+    speakingRef.current = false;
+    userSpeaking.current = false;
     if (idleTimer.current) {
       clearTimeout(idleTimer.current);
       idleTimer.current = null;
@@ -165,7 +169,7 @@ export default function SleekVoice() {
       const answerSdp = await answer.text();
       await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
       setState("live");
-      bumpIdle();
+      refreshIdle();
     } catch (e) {
       teardown();
       setError((e as Error).message);
@@ -179,12 +183,18 @@ export default function SleekVoice() {
     setError(reason ?? null);
   }
 
-  // Reset the inactivity timer on any activity; fire end() after the configured
-  // seconds of silence. When the timeout is 0 there is no idle timer — the
-  // session ends right after each reply instead (see response.done handling).
-  function bumpIdle() {
-    if (idleTimer.current) clearTimeout(idleTimer.current);
+  // Arm the inactivity timer only during TRUE silence — paused while the
+  // assistant is speaking, a response is generating, or the user is talking (the
+  // reply audio plays for seconds with no further events, so a blanket
+  // "reset on any event" timer would fire mid-speech). idle<=0 uses a different
+  // path (end right after each reply), so no timer here.
+  function refreshIdle() {
+    if (idleTimer.current) {
+      clearTimeout(idleTimer.current);
+      idleTimer.current = null;
+    }
     if (!pcRef.current || idleSecRef.current <= 0) return;
+    if (speakingRef.current || activeResponse.current || userSpeaking.current) return; // paused
     idleTimer.current = setTimeout(
       () => end("Ended after a while with no activity."),
       idleSecRef.current * 1000,
@@ -200,7 +210,15 @@ export default function SleekVoice() {
       return;
     }
     const type: string = ev.type || "";
-    bumpIdle(); // any event = activity; reset the inactivity timer
+
+    // Idle bookkeeping: track who's active, then (re)arm the silence timer.
+    if (type === "input_audio_buffer.speech_started") userSpeaking.current = true;
+    else if (type === "input_audio_buffer.speech_stopped") userSpeaking.current = false;
+    if (type === "output_audio_buffer.started" || type === "response.output_audio.started") speakingRef.current = true;
+    else if (type === "output_audio_buffer.stopped") speakingRef.current = false;
+    if (type === "response.created") activeResponse.current = true;
+    else if (type === "response.done") activeResponse.current = false;
+    refreshIdle();
 
     // User speech transcript (final)
     if (type.includes("input_audio_transcription") && (type.endsWith(".completed") || type.endsWith(".done"))) {
@@ -223,7 +241,6 @@ export default function SleekVoice() {
       return;
     }
     if (type === "response.created") {
-      activeResponse.current = true;
       toolHandled.current = false;
       toolPromises.current = [];
       return;
@@ -236,8 +253,6 @@ export default function SleekVoice() {
       return;
     }
     if (type === "response.done") {
-      setSpeaking(false);
-      activeResponse.current = false;
       const hadTools = toolHandled.current;
       // If this response asked us to run tools, reply once — AFTER the response
       // finished and every tool output has been submitted.
