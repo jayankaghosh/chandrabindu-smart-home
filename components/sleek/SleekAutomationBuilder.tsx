@@ -2,8 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Loader2, Check, X, Trash2, ArrowRight } from "lucide-react";
-import type { Automation, Room } from "@/lib/types";
+import { Loader2, Check, X, Trash2, ArrowRight, Clock, Sunrise, Plus } from "lucide-react";
+import type { Automation, AutomationCondition, Room } from "@/lib/types";
 import { valueLabel } from "./labels";
 import SleekActionPicker from "./SleekActionPicker";
 
@@ -11,6 +11,22 @@ interface Clause {
   deviceId: string;
   code: string;
   value: unknown;
+}
+
+/** Human label for a condition of any type. */
+function describeCondition(
+  c: AutomationCondition,
+  byId: Map<string, Room["devices"][number]>,
+): string {
+  if (c.type === "time") return `At ${c.time}`;
+  if (c.type === "sun") {
+    const off = c.offsetMin ?? 0;
+    const suffix = off === 0 ? "" : off > 0 ? ` +${off} min` : ` ${off} min`;
+    return `At ${c.event}${suffix}`;
+  }
+  const d = byId.get(c.deviceId);
+  const f = d?.functions.find((x) => x.code === c.code);
+  return `${d?.name ?? "?"} · ${f?.name ?? c.code} = ${f ? valueLabel(f, c.value) : String(c.value)}`;
 }
 
 // Sleek-native automation builder, shown as a full-screen modal overlay.
@@ -29,14 +45,18 @@ export default function SleekAutomationBuilder({
 }) {
   const [name, setName] = useState(initial?.name ?? "");
   const [match, setMatch] = useState<"all" | "any">(initial?.match ?? "all");
-  const [conditions, setConditions] = useState<Clause[]>(
-    initial?.conditions.map((c) => ({ deviceId: c.deviceId, code: c.code, value: c.value })) ?? [],
-  );
+  const [conditions, setConditions] = useState<AutomationCondition[]>(initial?.conditions ?? []);
   const [actions, setActions] = useState<Clause[]>(
     initial?.actions.map((a) => ({ deviceId: a.deviceId, code: a.code, value: a.value })) ?? [],
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Which kind of condition the user is adding, plus the time/sun inputs.
+  const [condKind, setCondKind] = useState<"device" | "time" | "sun">("device");
+  const [timeVal, setTimeVal] = useState("18:00");
+  const [sunEvent, setSunEvent] = useState<"sunrise" | "sunset">("sunset");
+  const [sunOffset, setSunOffset] = useState("0");
 
   const byId = useMemo(() => new Map(rooms.flatMap((r) => r.devices).map((d) => [d.id, d])), [rooms]);
   const describe = (c: Clause) => {
@@ -132,8 +152,92 @@ export default function SleekAutomationBuilder({
             ))}
           </div>
         </div>
-        <ClauseList list={conditions} onRemove={(i) => setConditions((x) => x.filter((_, j) => j !== i))} />
-        <SleekActionPicker rooms={rooms} addLabel="Add condition" onAdd={(a) => setConditions((x) => [...x, { deviceId: a.deviceId, code: a.code, value: a.value }])} />
+        {/* Existing conditions (any type) */}
+        {conditions.length > 0 && (
+          <ul className="mb-3 space-y-2">
+            {conditions.map((c, i) => (
+              <li
+                key={i}
+                className="flex items-center justify-between gap-2 rounded-2xl border border-white/60 bg-white/50 px-3.5 py-2.5 text-sm dark:border-white/10 dark:bg-white/[0.06]"
+              >
+                <span className="min-w-0 truncate text-slate-700 dark:text-slate-200">{describeCondition(c, byId)}</span>
+                <button
+                  onClick={() => setConditions((x) => x.filter((_, j) => j !== i))}
+                  aria-label="Remove"
+                  className="shrink-0 text-slate-400 hover:text-red-500"
+                >
+                  <Trash2 size={15} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {/* Condition-kind selector */}
+        <div className="mb-2 inline-flex rounded-xl border border-white/60 bg-white/40 p-0.5 text-xs dark:border-white/10 dark:bg-white/[0.05]">
+          {([
+            ["device", "Device"],
+            ["time", "Time"],
+            ["sun", "Sun"],
+          ] as const).map(([k, lbl]) => (
+            <button
+              key={k}
+              onClick={() => setCondKind(k)}
+              className={`rounded-lg px-2.5 py-1 font-semibold ${condKind === k ? "bg-brand-500 text-white" : "text-slate-500 dark:text-slate-400"}`}
+            >
+              {lbl}
+            </button>
+          ))}
+        </div>
+
+        {condKind === "device" && (
+          <SleekActionPicker
+            rooms={rooms}
+            addLabel="Add condition"
+            onAdd={(a) => setConditions((x) => [...x, { type: "device", deviceId: a.deviceId, code: a.code, value: a.value }])}
+          />
+        )}
+        {condKind === "time" && (
+          <div className="flex items-center gap-2">
+            <Clock size={16} className="text-slate-400" />
+            <input type="time" value={timeVal} onChange={(e) => setTimeVal(e.target.value)} className="field !py-2 flex-1" />
+            <button
+              onClick={() => timeVal && setConditions((x) => [...x, { type: "time", time: timeVal }])}
+              className="btn-primary !px-3"
+            >
+              <Plus size={15} /> Add
+            </button>
+          </div>
+        )}
+        {condKind === "sun" && (
+          <div className="flex flex-wrap items-center gap-2">
+            <Sunrise size={16} className="text-slate-400" />
+            <select
+              value={sunEvent}
+              onChange={(e) => setSunEvent(e.target.value as "sunrise" | "sunset")}
+              className="field !py-2 flex-1"
+            >
+              <option value="sunrise">Sunrise</option>
+              <option value="sunset">Sunset</option>
+            </select>
+            <input
+              type="number"
+              value={sunOffset}
+              onChange={(e) => setSunOffset(e.target.value)}
+              className="field !py-2 w-24"
+              placeholder="± min"
+              title="Offset in minutes (negative = before)"
+            />
+            <button
+              onClick={() =>
+                setConditions((x) => [...x, { type: "sun", event: sunEvent, offsetMin: Math.round(Number(sunOffset) || 0) }])
+              }
+              className="btn-primary !px-3"
+            >
+              <Plus size={15} /> Add
+            </button>
+          </div>
+        )}
 
         {/* THEN */}
         <div className="mb-2 mt-5 flex items-center gap-1.5">

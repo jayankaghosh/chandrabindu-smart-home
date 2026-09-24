@@ -178,14 +178,38 @@ export interface InsightReport {
 }
 
 // ── Automations (event-driven rules) ─────────────────────────────────────────
-// Evaluated by the device gateway on each real-time state change: when the IF
-// conditions match (edge-triggered), the THEN actions run.
+// Device-state conditions are evaluated by the device gateway on each real-time
+// state change (edge-triggered). Time-of-day and sun conditions are *triggers*
+// evaluated by the app's 30s scheduler (lib/automationScheduler.ts); an
+// automation with any trigger is owned solely by the scheduler, which reads a
+// rule as "WHEN a trigger fires, IF the device guards pass, THEN run actions".
 
-/** One IF clause: a device control equals a value. */
-export interface AutomationCondition {
+/** A device control equals a value — a guard (the "IF"). */
+export interface DeviceCondition {
+  type?: "device";
   deviceId: string;
   code: string;
   value: unknown; // boolean for switches, string for fan/enum, number for integer
+}
+
+/** Fires once a day at a wall-clock time — a trigger (the "WHEN"). */
+export interface TimeCondition {
+  type: "time";
+  time: string; // "HH:MM", 24-hour, local hub time
+}
+
+/** Fires at sunrise/sunset (± offset minutes) — a trigger (the "WHEN"). */
+export interface SunCondition {
+  type: "sun";
+  event: "sunrise" | "sunset";
+  offsetMin?: number; // negative = before, positive = after
+}
+
+export type AutomationCondition = DeviceCondition | TimeCondition | SunCondition;
+
+/** True for the trigger condition types owned by the app scheduler. */
+export function isTriggerCondition(c: AutomationCondition): c is TimeCondition | SunCondition {
+  return c.type === "time" || c.type === "sun";
 }
 
 /** One THEN action: set a device control to a value. */

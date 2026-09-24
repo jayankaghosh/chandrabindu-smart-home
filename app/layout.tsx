@@ -1,5 +1,13 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { startAutomationScheduler } from "@/lib/automationScheduler";
+
+// RootLayout is a server component (Node runtime), so this is a safe place to
+// boot the automation scheduler once per server process. The call is a no-op
+// after the first invocation (global singleton) and never runs on the client.
+if (typeof window === "undefined") {
+  startAutomationScheduler();
+}
 
 export const metadata: Metadata = {
   title: "Smart Home",

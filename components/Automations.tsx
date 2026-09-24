@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, Trash2, Loader2, X, Check, Zap, ArrowRight, Pencil, Power } from "lucide-react";
+import { Plus, Trash2, Loader2, X, Check, Zap, ArrowRight, Pencil, Power, Clock, Sunrise } from "lucide-react";
 import type {
   Room,
   DeviceFunction,
@@ -10,6 +10,7 @@ import type {
   AutomationCondition,
   AutomationAction,
 } from "@/lib/types";
+import { isTriggerCondition } from "@/lib/types";
 
 type Clause = { deviceId: string; code: string; value: unknown };
 
@@ -22,6 +23,16 @@ function defaultValue(fn?: DeviceFunction): unknown {
   if (fn.type === "Enum") return fn.range?.[0] ?? "";
   if (fn.type === "Integer") return fn.min ?? 0;
   return null;
+}
+
+/** Short label for a time/sun trigger condition. */
+function triggerLabel(c: AutomationCondition): string {
+  if (c.type === "time") return `At ${c.time}`;
+  if (c.type === "sun") {
+    const off = c.offsetMin ?? 0;
+    return `At ${c.event}${off === 0 ? "" : off > 0 ? ` +${off} min` : ` ${off} min`}`;
+  }
+  return "";
 }
 
 function valueLabel(fn: DeviceFunction | undefined, v: unknown): string {
@@ -226,15 +237,22 @@ function ClauseList({
       </p>
       <ul className="space-y-1">
         {clauses.map((c, i) => {
-          const d = describe(c);
+          const trigger = isTriggerCondition(c as AutomationCondition);
+          const d = trigger ? null : describe(c as Clause);
           return (
             <li key={i} className="text-sm text-slate-600 dark:text-slate-300">
               {joiner && i > 0 && (
                 <span className="mr-1 text-[10px] font-bold text-slate-400 dark:text-slate-500">{joiner}</span>
               )}
-              <span className="text-slate-400 dark:text-slate-500">{d.device}</span> {d.control}{" "}
-              <span className="text-slate-300 dark:text-slate-600">→</span>{" "}
-              <span className="font-medium text-slate-900 dark:text-slate-100">{d.value}</span>
+              {trigger ? (
+                <span className="font-medium text-slate-900 dark:text-slate-100">{triggerLabel(c as AutomationCondition)}</span>
+              ) : (
+                <>
+                  <span className="text-slate-400 dark:text-slate-500">{d!.device}</span> {d!.control}{" "}
+                  <span className="text-slate-300 dark:text-slate-600">→</span>{" "}
+                  <span className="font-medium text-slate-900 dark:text-slate-100">{d!.value}</span>
+                </>
+              )}
             </li>
           );
         })}
@@ -256,8 +274,18 @@ function AutomationBuilder({
 }) {
   const [name, setName] = useState(initial?.name ?? "");
   const [match, setMatch] = useState<"all" | "any">(initial?.match ?? "all");
-  const [conditions, setConditions] = useState<Clause[]>(initial?.conditions ?? []);
+  const [conditions, setConditions] = useState<AutomationCondition[]>(initial?.conditions ?? []);
   const [actions, setActions] = useState<Clause[]>(initial?.actions ?? []);
+
+  // The device-guard subset drives the shared ClauseEditor; triggers (time/sun)
+  // are kept alongside and edited by the TriggerEditor below.
+  const deviceConds = conditions.filter((c) => !isTriggerCondition(c)) as Clause[];
+  const setDeviceConds = (fn: (c: Clause[]) => Clause[]) =>
+    setConditions((prev) => {
+      const triggers = prev.filter(isTriggerCondition);
+      const next = fn(prev.filter((c) => !isTriggerCondition(c)) as Clause[]);
+      return [...next.map((d) => ({ type: "device" as const, ...d })), ...triggers];
+    });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -338,10 +366,19 @@ function AutomationBuilder({
         </div>
         <ClauseEditor
           rooms={rooms}
-          clauses={conditions}
-          setClauses={setConditions}
+          clauses={deviceConds}
+          setClauses={setDeviceConds}
           lookup={lookup}
           joiner={match === "all" ? "AND" : "OR"}
+        />
+        <TriggerEditor
+          triggers={conditions.filter(isTriggerCondition)}
+          onAdd={(t) => setConditions((prev) => [...prev, t])}
+          onRemoveAt={(idx) => {
+            // idx is within the trigger subset; map back to the full list.
+            let seen = -1;
+            setConditions((prev) => prev.filter((c) => (isTriggerCondition(c) ? ++seen !== idx : true)));
+          }}
         />
       </div>
 
@@ -362,6 +399,97 @@ function AutomationBuilder({
           {saving ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
           {initial ? "Save changes" : "Save automation"}
         </button>
+      </div>
+    </div>
+  );
+}
+
+// Time-of-day and sunrise/sunset triggers for the IF section (a rule fires
+// WHEN a trigger is due, IF the device guards above pass).
+function TriggerEditor({
+  triggers,
+  onAdd,
+  onRemoveAt,
+}: {
+  triggers: AutomationCondition[];
+  onAdd: (t: AutomationCondition) => void;
+  onRemoveAt: (idx: number) => void;
+}) {
+  const [kind, setKind] = useState<"time" | "sun">("time");
+  const [timeVal, setTimeVal] = useState("18:00");
+  const [sunEvent, setSunEvent] = useState<"sunrise" | "sunset">("sunset");
+  const [sunOffset, setSunOffset] = useState("0");
+
+  const label = (t: AutomationCondition) => {
+    if (t.type === "time") return `At ${t.time}`;
+    if (t.type === "sun") {
+      const off = t.offsetMin ?? 0;
+      return `At ${t.event}${off === 0 ? "" : off > 0 ? ` +${off} min` : ` ${off} min`}`;
+    }
+    return "";
+  };
+
+  return (
+    <div className="mt-2">
+      {triggers.length > 0 && (
+        <ul className="mb-2 space-y-1.5">
+          {triggers.map((t, i) => (
+            <li
+              key={i}
+              className="flex items-center justify-between gap-2 rounded-lg border border-white/60 bg-white/40 px-3 py-1.5 text-sm dark:border-white/10 dark:bg-white/[0.05]"
+            >
+              <span className="flex items-center gap-2 text-slate-700 dark:text-slate-200">
+                {t.type === "time" ? <Clock size={14} className="text-slate-400" /> : <Sunrise size={14} className="text-slate-400" />}
+                {label(t)}
+              </span>
+              <button onClick={() => onRemoveAt(i)} aria-label="Remove trigger" className="text-slate-400 hover:text-red-500">
+                <Trash2 size={14} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="inline-flex rounded-lg border border-white/60 bg-white/40 p-0.5 text-xs dark:border-white/10 dark:bg-white/[0.05]">
+          {(["time", "sun"] as const).map((k) => (
+            <button
+              key={k}
+              onClick={() => setKind(k)}
+              className={`rounded-md px-2.5 py-1 font-medium ${kind === k ? "bg-white text-slate-900 shadow-sm dark:bg-white/90" : "text-slate-500 dark:text-slate-300"}`}
+            >
+              {k === "time" ? "Time" : "Sun"}
+            </button>
+          ))}
+        </div>
+        {kind === "time" ? (
+          <>
+            <input type="time" value={timeVal} onChange={(e) => setTimeVal(e.target.value)} className="field !py-1.5 w-32" />
+            <button onClick={() => timeVal && onAdd({ type: "time", time: timeVal })} className="btn-ghost !py-1.5">
+              <Plus size={14} /> Add time
+            </button>
+          </>
+        ) : (
+          <>
+            <select value={sunEvent} onChange={(e) => setSunEvent(e.target.value as "sunrise" | "sunset")} className="field !py-1.5 w-28">
+              <option value="sunrise">Sunrise</option>
+              <option value="sunset">Sunset</option>
+            </select>
+            <input
+              type="number"
+              value={sunOffset}
+              onChange={(e) => setSunOffset(e.target.value)}
+              className="field !py-1.5 w-20"
+              title="Offset in minutes (negative = before)"
+              placeholder="± min"
+            />
+            <button
+              onClick={() => onAdd({ type: "sun", event: sunEvent, offsetMin: Math.round(Number(sunOffset) || 0) })}
+              className="btn-ghost !py-1.5"
+            >
+              <Plus size={14} /> Add sun
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

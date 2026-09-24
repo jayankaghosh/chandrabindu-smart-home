@@ -12,6 +12,7 @@ import {
   Radar,
   Sparkles,
   House,
+  MapPin,
   Users,
   Lock,
   MonitorSmartphone,
@@ -51,6 +52,11 @@ export default function Settings({ isAdmin }: { isAdmin: boolean }) {
   const [houseName, setHouseName] = useState("");
   const [houseMsg, setHouseMsg] = useState<string | null>(null);
   const [savingHouse, setSavingHouse] = useState(false);
+
+  const [lat, setLat] = useState("");
+  const [lng, setLng] = useState("");
+  const [savingLoc, setSavingLoc] = useState(false);
+  const [locMsg, setLocMsg] = useState<string | null>(null);
 
   // AI features (OpenRouter)
   const [ai, setAi] = useState<{
@@ -215,14 +221,45 @@ export default function Settings({ isAdmin }: { isAdmin: boolean }) {
     if (res.ok) setHouseName((await res.json()).name || "");
   }, []);
 
+  const loadLocation = useCallback(async () => {
+    const res = await fetch("/api/location");
+    if (res.ok) {
+      const loc = (await res.json()).location;
+      setLat(loc ? String(loc.lat) : "");
+      setLng(loc ? String(loc.lng) : "");
+    }
+  }, []);
+
   useEffect(() => {
     if (!isAdmin) return; // standard users only see the password section
     loadCreds();
     loadAi();
     loadHouse();
+    loadLocation();
     loadAutoRestore();
     loadVoice();
-  }, [isAdmin, loadCreds, loadAi, loadHouse, loadAutoRestore, loadVoice]);
+  }, [isAdmin, loadCreds, loadAi, loadHouse, loadLocation, loadAutoRestore, loadVoice]);
+
+  async function saveLocation(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingLoc(true);
+    setLocMsg(null);
+    try {
+      const body = lat.trim() === "" && lng.trim() === "" ? { clear: true } : { lat: Number(lat), lng: Number(lng) };
+      const res = await fetch("/api/location", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Failed");
+      setLocMsg(d.location ? "Saved." : "Cleared.");
+    } catch (e2) {
+      setLocMsg((e2 as Error).message);
+    } finally {
+      setSavingLoc(false);
+    }
+  }
 
   async function saveHouse(e: React.FormEvent) {
     e.preventDefault();
@@ -432,6 +469,35 @@ export default function Settings({ isAdmin }: { isAdmin: boolean }) {
             </button>
           </form>
           {houseMsg && <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{houseMsg}</p>}
+        </Section>
+
+        {/* Location (sunrise/sunset automations) */}
+        <Section icon={<MapPin size={16} />} title="Location">
+          <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
+            Latitude &amp; longitude of your home, used for sunrise/sunset automation triggers. Leave both
+            blank to clear.
+          </p>
+          <form onSubmit={saveLocation} className="flex flex-wrap items-center gap-2">
+            <input
+              value={lat}
+              onChange={(e) => setLat(e.target.value)}
+              className="field w-36"
+              placeholder="Latitude"
+              inputMode="decimal"
+            />
+            <input
+              value={lng}
+              onChange={(e) => setLng(e.target.value)}
+              className="field w-36"
+              placeholder="Longitude"
+              inputMode="decimal"
+            />
+            <button type="submit" disabled={savingLoc} className="btn-primary">
+              {savingLoc ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}
+              Save
+            </button>
+          </form>
+          {locMsg && <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{locMsg}</p>}
         </Section>
 
         {/* Re-sync */}

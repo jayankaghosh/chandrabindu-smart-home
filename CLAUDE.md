@@ -184,8 +184,29 @@ real time when the gateway is up.
   `SleekRoutines.tsx`): named lists of actions run in one tap (`/api/routines/[id]/run`).
 - **Automations** (`lib/automations.ts`, `/api/automations`, `Automations.tsx`,
   `SleekAutomations.tsx`): admin-authored IF/THEN rules (conditions with
-  AND/OR = match all/any; actions set on/off/fan values). **Executed by the
-  gateway's `RuleEngine`**, not the app. Non-admins can view.
+  AND/OR = match all/any; actions set on/off/fan values). Non-admins can view.
+  Conditions have a `type` (`AutomationCondition` in `lib/types.ts`):
+  - `device` (default; also matches legacy rules with no `type`) — a device
+    control equals a value. A **guard** ("IF"). **Executed by the gateway's
+    `RuleEngine`** on device-change edges, as before.
+  - `time` (`{time:"HH:MM"}`) and `sun` (`{event, offsetMin}`) — **triggers**
+    ("WHEN"), fired once/day by the **app-side scheduler**
+    (`lib/automationScheduler.ts`), NOT the gateway. A rule reads as "WHEN a
+    trigger is due, IF the device guards pass (per match), THEN run actions".
+  - **Ownership split (no double-fire):** any rule that contains a trigger is
+    evaluated solely by the app scheduler; `device-gateway/src/rules.js`
+    `loadAutomations()` skips those rules. Device-only rules stay in the gateway.
+- **Automation scheduler** (`lib/automationScheduler.ts`): an in-process 30s
+  loop started once per server from `app/layout.tsx` (a Node server component —
+  NOT via `instrumentation.ts`, whose Edge compile can't resolve `crypto`/`net`).
+  Each tick fires due time/sun triggers, checks guards via `getStatusLocal`, and
+  runs actions with `setCommandLocal` (skipping protected controls, like the
+  gateway). Fired-state is persisted to `data/automationFired.json` so a restart
+  within a trigger's 5-min grace window doesn't re-fire. Sun times come from
+  `lib/sunTimes.ts` (fetches `api.sunrisesunset.io` once/day using the config
+  `location` lat/lng, cached to `data/suntimes.json`; no location → sun triggers
+  are skipped). Location is set in Settings → **Location** (`/api/location`,
+  `getLatLng`/`setLatLng` in `lib/config.ts`).
 - **Insights** (`lib/insights.ts`, `/api/insights`, `Insights.tsx`): feeds
   recent action logs (`logs/`) to an LLM via OpenRouter, caches per timeframe.
   On-demand, not real-time. Default model `qwen/qwen3-coder:free`.

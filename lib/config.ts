@@ -58,6 +58,8 @@ interface AppConfig {
   openrouter?: { apiKey: string; model: string; enabled?: boolean };
   /** OpenAI key + settings for the Realtime (speech-to-speech) voice mode. */
   openaiRealtime?: { apiKey: string; model?: string; voice?: string; enabled?: boolean; idleTimeoutSec?: number };
+  /** House location for sunrise/sunset automation triggers. */
+  location?: { lat: number; lng: number };
 }
 
 /** Public (no secret) view of a user, for the settings UI. */
@@ -124,6 +126,7 @@ export function setPassword(password: string): void {
     tuya: existing?.tuya,
     openrouter: existing?.openrouter,
     openaiRealtime: existing?.openaiRealtime,
+    location: existing?.location,
   };
   write(config);
 }
@@ -136,6 +139,25 @@ export function setHouseName(name: string): void {
   const config = read();
   if (!config) throw new Error("App is not onboarded yet");
   write({ ...config, houseName: name.trim() || DEFAULT_HOUSE_NAME });
+}
+
+/** House location (lat/lng) for sunrise/sunset automation triggers, or null. */
+export function getLatLng(): { lat: number; lng: number } | null {
+  const loc = read()?.location;
+  if (!loc || !Number.isFinite(loc.lat) || !Number.isFinite(loc.lng)) return null;
+  return { lat: loc.lat, lng: loc.lng };
+}
+
+/** Set or clear the house location. Pass null to clear. */
+export function setLatLng(loc: { lat: number; lng: number } | null): void {
+  const config = read();
+  if (!config) throw new Error("App is not onboarded yet");
+  if (loc && Number.isFinite(loc.lat) && Number.isFinite(loc.lng)) {
+    write({ ...config, location: { lat: loc.lat, lng: loc.lng } });
+  } else {
+    const { location: _drop, ...rest } = config;
+    write(rest);
+  }
 }
 
 /** Verify the superadmin (onboarding) password. */

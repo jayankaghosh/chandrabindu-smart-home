@@ -27,7 +27,13 @@ function readJson(p, fallback) {
 function loadAutomations() {
   const parsed = readJson(AUTOMATIONS_PATH, null);
   const list = Array.isArray(parsed) ? parsed : parsed && parsed.automations;
-  return Array.isArray(list) ? list : [];
+  if (!Array.isArray(list)) return [];
+  // Rules with a time-of-day or sun trigger are owned by the app's 30s
+  // scheduler (this gateway only reacts to device changes, never the clock), so
+  // skip them here to avoid double-evaluation.
+  return list.filter(
+    (r) => !(Array.isArray(r.conditions) && r.conditions.some((c) => c && (c.type === "time" || c.type === "sun"))),
+  );
 }
 
 function loadProtected() {

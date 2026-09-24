@@ -1,65 +1,90 @@
-# Chandrabindu Smart Home — Android Wrapper
+# Chandrabindu — mobile app
 
-A thin **Android** app that wraps the Chandrabindu web app (served from your home
-hub) in a WebView.
+A native iOS/Android app (Expo + React Native) for the Chandrabindu smart home.
+It talks to the hub's REST + Realtime API exactly like the web Sleek theme, minus
+the admin/settings surface (those stay on the website).
 
-## How it works
-On launch (and whenever you tap **Try again**) the app:
+**Features:** username/password login · rooms & live device control (switches,
+fans, dimmers) · favourites · routines · automations (view) · insights (view) ·
+hands-free **voice** (OpenAI Realtime over WebRTC).
 
-1. Fetches `http://192.168.68.68/api/metadata`.
-2. If that request fails, or the returned `name` isn't `"Chandrabindu Smart Home"`,
-   it shows an error: *"Oops — can't find your home server. Make sure you're
-   connected to your home Wi-Fi network and the hub is on."*
-3. Otherwise it loads the full site at `http://192.168.68.68` inside a WebView.
+## Configure
 
-The Android hardware **back** button navigates within the site; if the page goes
-unreachable mid-session, it drops back to the error screen.
+The hub address lives in [`.env`](.env):
 
-## Configuration
-Edit [`config.ts`](./config.ts):
-
-```ts
-export const BASE_URL = "http://192.168.68.68";   // your hub's address
-export const EXPECTED_NAME = "Chandrabindu Smart Home"; // must match /api/metadata
+```
+EXPO_PUBLIC_SERVER_URL=http://192.168.68.68
 ```
 
-`EXPECTED_NAME` must equal the `name` field returned by the server endpoint at
-[`app/api/metadata/route.ts`](../app/api/metadata/route.ts):
+Change it if your hub's LAN address differs. Your phone must be on the **same
+Wi-Fi** as the hub. Plain-HTTP LAN is allowed (iOS ATS exception + Android
+cleartext are set in `app.json`).
 
-```json
-{ "name": "Chandrabindu Smart Home", "description": "...", "version": "1.0.0" }
-```
+## Run it
 
-Plain-HTTP LAN traffic is allowed via the `expo-build-properties` plugin
-(`usesCleartextTraffic: true`) in [`app.json`](./app.json).
+Voice uses `react-native-webrtc`, a native module, so this app runs in a
+**custom dev build / standalone build — not the stock Expo Go app.** Everything
+else would work in Expo Go, but voice needs the native build.
 
-## Run / test (no build)
+### Option A — build locally (needs Xcode / Android Studio)
+
 ```bash
 cd mobile-app
 npm install
-npm start          # press "a" or scan the QR with Expo Go on Android
+npx expo run:ios        # or: npx expo run:android
 ```
 
-## Build the APK (EAS, cloud)
+This prebuilds the native project, installs the app on a simulator/device, and
+starts Metro with fast refresh.
+
+### Option B — EAS build (no local native toolchain)
+
 ```bash
-npm install -g eas-cli
+npm i -g eas-cli
 eas login
-eas build --platform android --profile preview   # produces an installable .apk
+eas build --profile development --platform ios     # or android
+# install the resulting build on your phone, then:
+npx expo start --dev-client
 ```
-Download the APK from the URL EAS prints, transfer it to the phone, and install
-(allow "install from unknown sources"). `--profile production` produces an
-`.aab` for the Play Store instead.
 
-## Note on `@babel/runtime`
-`@babel/runtime` is pinned to `7.24.0` (via `dependencies` + `overrides`).
-`react-native-webview` ships its TypeScript source, and newer `@babel/runtime`
-(7.26+) versions have an `exports` map that Metro 0.80 / Expo SDK 51 mis-resolves
-while transpiling it — pinning avoids the "Unable to resolve module
-@babel/runtime/helpers/…" bundle failure.
+### Install on your phone for real use
 
-### Local APK (needs JDK 17 + Android SDK)
 ```bash
-npx expo prebuild -p android
-cd android && ./gradlew assembleRelease
-# → android/app/build/outputs/apk/release/app-release.apk
+eas build --profile preview --platform ios     # or android (produces an .apk)
 ```
+
+Then sign in with your hub username and password.
+
+## iOS 26 note
+
+iOS 26 fatally requires apps to adopt the UIScene lifecycle, which the current
+Expo/RN template doesn't do (it still creates the window in the app delegate) —
+without the fix the app crashes at launch (`NoSceneLifecycleAdoption`) or shows a
+black screen. [`plugins/withIOSSceneLifecycle.js`](plugins/withIOSSceneLifecycle.js)
+is a config plugin (wired in `app.json`) that adds a `SceneDelegate` and the
+Info.plist scene manifest. It applies automatically on `expo prebuild` /
+`expo run:ios` — no manual step. Verified launching to the login screen on an
+iPhone 18 Pro (iOS 26) simulator.
+
+## Structure
+
+```
+src/
+  config.ts          server URL from EXPO_PUBLIC_SERVER_URL
+  api.ts             fetch wrapper — attaches the bearer token, typed errors
+  auth.tsx           login + token (expo-secure-store), restores session on launch
+  tokenStore.ts      in-memory + persisted bearer token
+  queries.ts         React Query hooks (rooms, status polling, favourites, routines, …)
+  types.ts           shapes mirrored from the server
+  theme.ts           light/dark palette
+  lib/format.ts      on/off + value labels, favKey
+  components/        ControlTile (Boolean/Enum/Integer, protected gray-out), ui bits
+  voice/             useRealtimeVoice — WebRTC + Realtime tool loop
+  screens/           Login, Rooms, RoomDetail, Favourites, Routines, Voice, More, Automations, Insights
+App.tsx              providers + tab/stack navigation
+```
+
+Live status is polled via `POST /api/voice/status` (one request for many
+devices) rather than SSE. Auth is a bearer token from `/api/auth/login`, stored
+encrypted in SecureStore and sent on every request. Protected controls are
+enforced **server-side**; the app also greys them out.

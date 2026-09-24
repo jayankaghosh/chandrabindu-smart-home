@@ -1,197 +1,127 @@
-// Chandrabindu — Android WebView wrapper.
-//
-// Flow:
-//   1. On launch (and on Retry), fetch BASE_URL/api/metadata.
-//   2. If it doesn't load, or the reported `name` isn't EXPECTED_NAME, show an
-//      error telling the user to get on the home network.
-//   3. Otherwise load the full website (BASE_URL) inside a WebView.
-
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  BackHandler,
-  Platform,
-  Pressable,
-  StatusBar as RNStatusBar,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import React from "react";
+import { ActivityIndicator, View, useColorScheme } from "react-native";
 import { StatusBar } from "expo-status-bar";
-import { WebView, type WebViewNavigation } from "react-native-webview";
-import { BASE_URL, EXPECTED_NAME, METADATA_URL } from "./config";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import { NavigationContainer, DefaultTheme, DarkTheme } from "@react-navigation/native";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Home, Star, Sparkles, Mic, Menu } from "lucide-react-native";
 
-type Phase = "checking" | "ready" | "error";
+import { AuthProvider, useAuth } from "./src/auth";
+import { usePalette } from "./src/theme";
+import type { MoreStackParams, RoomsStackParams } from "./src/navigation";
 
-const COLORS = {
-  bg: "#0b0e16",
-  card: "rgba(255,255,255,0.06)",
-  border: "rgba(255,255,255,0.12)",
-  brand: "#6366f1",
-  text: "#e7e7ea",
-  muted: "#94a3b8",
-  danger: "#fb7185",
-};
+import LoginScreen from "./src/screens/LoginScreen";
+import RoomsScreen from "./src/screens/RoomsScreen";
+import RoomDetailScreen from "./src/screens/RoomDetailScreen";
+import FavouritesScreen from "./src/screens/FavouritesScreen";
+import RoutinesScreen from "./src/screens/RoutinesScreen";
+import VoiceScreen from "./src/screens/VoiceScreen";
+import MoreScreen from "./src/screens/MoreScreen";
+import AutomationsScreen from "./src/screens/AutomationsScreen";
+import InsightsScreen from "./src/screens/InsightsScreen";
 
-export default function App() {
-  const [phase, setPhase] = useState<Phase>("checking");
-  const [message, setMessage] = useState<string>("");
-  const webRef = useRef<WebView>(null);
-  const canGoBack = useRef(false);
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
+});
 
-  // Verify we're talking to a real Chandrabindu hub before loading the site.
-  const check = useCallback(async () => {
-    setPhase("checking");
-    setMessage("");
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 8000);
-    try {
-      const res = await fetch(METADATA_URL, {
-        signal: controller.signal,
-        headers: { Accept: "application/json" },
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      if (data?.name !== EXPECTED_NAME) {
-        setMessage(
-          "That address answered, but it doesn't look like your Chandrabindu hub. Check the server address.",
-        );
-        setPhase("error");
-        return;
-      }
-      setPhase("ready");
-    } catch {
-      setMessage(
-        "Oops — can't find your home server. Make sure you're connected to your home Wi-Fi network and the hub is on.",
-      );
-      setPhase("error");
-    } finally {
-      clearTimeout(timer);
-    }
-  }, []);
+const RoomsStack = createNativeStackNavigator<RoomsStackParams>();
+const MoreStack = createNativeStackNavigator<MoreStackParams>();
+const Tabs = createBottomTabNavigator();
 
-  useEffect(() => {
-    check();
-  }, [check]);
-
-  // Android hardware back navigates within the WebView when possible.
-  useEffect(() => {
-    if (Platform.OS !== "android") return;
-    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
-      if (phase === "ready" && canGoBack.current) {
-        webRef.current?.goBack();
-        return true;
-      }
-      return false;
-    });
-    return () => sub.remove();
-  }, [phase]);
-
-  const onNavChange = (nav: WebViewNavigation) => {
-    canGoBack.current = nav.canGoBack;
-  };
-
+function RoomsNavigator() {
   return (
-    <View style={styles.root}>
-      <StatusBar style="light" />
-      {phase === "checking" ? (
-        <Centered>
-          <ActivityIndicator color={COLORS.brand} size="large" />
-          <Text style={styles.muted}>Connecting to your home hub…</Text>
-        </Centered>
-      ) : phase === "error" ? (
-        <Centered>
-          <View style={styles.card}>
-            <Text style={styles.emoji}>📡</Text>
-            <Text style={styles.title}>Can&apos;t reach your hub</Text>
-            <Text style={styles.body}>{message}</Text>
-            <Pressable
-              style={({ pressed }) => [styles.button, pressed && { opacity: 0.85 }]}
-              onPress={check}
-            >
-              <Text style={styles.buttonText}>Try again</Text>
-            </Pressable>
-            <Text style={styles.faint}>{BASE_URL}</Text>
-          </View>
-        </Centered>
-      ) : (
-        <WebView
-          ref={webRef}
-          source={{ uri: BASE_URL }}
-          style={styles.web}
-          originWhitelist={["*"]}
-          javaScriptEnabled
-          domStorageEnabled
-          thirdPartyCookiesEnabled
-          sharedCookiesEnabled
-          // Allow the plain-HTTP LAN site to load all its resources.
-          mixedContentMode="always"
-          pullToRefreshEnabled
-          startInLoadingState
-          renderLoading={() => (
-            <Centered>
-              <ActivityIndicator color={COLORS.brand} size="large" />
-            </Centered>
-          )}
-          onNavigationStateChange={onNavChange}
-          // If the main page fails to load (e.g. hub went offline), fall back
-          // to the error screen rather than showing a blank WebView.
-          onError={(e) => {
-            if (e.nativeEvent?.url?.startsWith(BASE_URL)) {
-              setMessage(
-                "Lost connection to your hub. Make sure you're on the home network and try again.",
-              );
-              setPhase("error");
-            }
-          }}
-        />
-      )}
-    </View>
+    <RoomsStack.Navigator screenOptions={{ headerTransparent: false }}>
+      <RoomsStack.Screen name="Rooms" component={RoomsScreen} options={{ headerShown: false }} />
+      <RoomsStack.Screen
+        name="RoomDetail"
+        component={RoomDetailScreen}
+        options={({ route }) => ({ title: route.params.name })}
+      />
+    </RoomsStack.Navigator>
   );
 }
 
-function Centered({ children }: { children: React.ReactNode }) {
-  return <View style={styles.centered}>{children}</View>;
+function MoreNavigator() {
+  return (
+    <MoreStack.Navigator>
+      <MoreStack.Screen name="More" component={MoreScreen} options={{ headerShown: false }} />
+      <MoreStack.Screen name="Automations" component={AutomationsScreen} />
+      <MoreStack.Screen name="Insights" component={InsightsScreen} />
+    </MoreStack.Navigator>
+  );
 }
 
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: COLORS.bg,
-    paddingTop: Platform.OS === "android" ? RNStatusBar.currentHeight ?? 0 : 0,
-  },
-  web: { flex: 1, backgroundColor: COLORS.bg },
-  centered: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 24,
-    gap: 14,
-    backgroundColor: COLORS.bg,
-  },
-  card: {
-    width: "100%",
-    maxWidth: 420,
-    alignItems: "center",
-    gap: 12,
-    padding: 24,
-    borderRadius: 24,
-    backgroundColor: COLORS.card,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: COLORS.border,
-  },
-  emoji: { fontSize: 40 },
-  title: { color: COLORS.text, fontSize: 20, fontWeight: "700", textAlign: "center" },
-  body: { color: COLORS.muted, fontSize: 14, lineHeight: 21, textAlign: "center" },
-  muted: { color: COLORS.muted, fontSize: 14 },
-  faint: { color: "#64748b", fontSize: 12, marginTop: 4 },
-  button: {
-    marginTop: 6,
-    alignSelf: "stretch",
-    backgroundColor: COLORS.brand,
-    borderRadius: 14,
-    paddingVertical: 13,
-    alignItems: "center",
-  },
-  buttonText: { color: "#fff", fontSize: 15, fontWeight: "700" },
-});
+function MainTabs() {
+  const p = usePalette();
+  return (
+    <Tabs.Navigator
+      screenOptions={{
+        headerShown: false,
+        tabBarActiveTintColor: p.brand,
+        tabBarInactiveTintColor: p.textDim,
+        tabBarStyle: { backgroundColor: p.card, borderTopColor: p.border },
+      }}
+    >
+      <Tabs.Screen
+        name="RoomsTab"
+        component={RoomsNavigator}
+        options={{ title: "Rooms", tabBarIcon: ({ color, size }) => <Home color={color} size={size} /> }}
+      />
+      <Tabs.Screen
+        name="Favourites"
+        component={FavouritesScreen}
+        options={{ tabBarIcon: ({ color, size }) => <Star color={color} size={size} /> }}
+      />
+      <Tabs.Screen
+        name="Routines"
+        component={RoutinesScreen}
+        options={{ tabBarIcon: ({ color, size }) => <Sparkles color={color} size={size} /> }}
+      />
+      <Tabs.Screen
+        name="Voice"
+        component={VoiceScreen}
+        options={{ tabBarIcon: ({ color, size }) => <Mic color={color} size={size} /> }}
+      />
+      <Tabs.Screen
+        name="MoreTab"
+        component={MoreNavigator}
+        options={{ title: "More", tabBarIcon: ({ color, size }) => <Menu color={color} size={size} /> }}
+      />
+    </Tabs.Navigator>
+  );
+}
+
+function Root() {
+  const { session, loading } = useAuth();
+  const scheme = useColorScheme();
+  const p = usePalette();
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: p.bg }}>
+        <ActivityIndicator color={p.brand} />
+      </View>
+    );
+  }
+
+  return (
+    <NavigationContainer theme={scheme === "dark" ? DarkTheme : DefaultTheme}>
+      {session ? <MainTabs /> : <LoginScreen />}
+    </NavigationContainer>
+  );
+}
+
+export default function App() {
+  return (
+    <SafeAreaProvider>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <StatusBar style="auto" />
+          <Root />
+        </AuthProvider>
+      </QueryClientProvider>
+    </SafeAreaProvider>
+  );
+}
