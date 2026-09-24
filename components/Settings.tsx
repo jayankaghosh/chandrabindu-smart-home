@@ -58,6 +58,11 @@ export default function Settings({ isAdmin }: { isAdmin: boolean }) {
   const [savingLoc, setSavingLoc] = useState(false);
   const [locMsg, setLocMsg] = useState<string | null>(null);
 
+  const [maxToggles, setMaxToggles] = useState("20");
+  const [windowSec, setWindowSec] = useState("20");
+  const [savingLoop, setSavingLoop] = useState(false);
+  const [loopMsg, setLoopMsg] = useState<string | null>(null);
+
   // AI features (OpenRouter)
   const [ai, setAi] = useState<{
     hasKey: boolean;
@@ -230,15 +235,47 @@ export default function Settings({ isAdmin }: { isAdmin: boolean }) {
     }
   }, []);
 
+  const loadLoopGuard = useCallback(async () => {
+    const res = await fetch("/api/loop-guard");
+    if (res.ok) {
+      const d = await res.json();
+      setMaxToggles(String(d.maxToggles ?? 20));
+      setWindowSec(String(d.windowSec ?? 20));
+    }
+  }, []);
+
   useEffect(() => {
     if (!isAdmin) return; // standard users only see the password section
     loadCreds();
     loadAi();
     loadHouse();
     loadLocation();
+    loadLoopGuard();
     loadAutoRestore();
     loadVoice();
-  }, [isAdmin, loadCreds, loadAi, loadHouse, loadLocation, loadAutoRestore, loadVoice]);
+  }, [isAdmin, loadCreds, loadAi, loadHouse, loadLocation, loadLoopGuard, loadAutoRestore, loadVoice]);
+
+  async function saveLoopGuard(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingLoop(true);
+    setLoopMsg(null);
+    try {
+      const res = await fetch("/api/loop-guard", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ maxToggles: Number(maxToggles), windowSec: Number(windowSec) }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Failed");
+      setMaxToggles(String(d.maxToggles));
+      setWindowSec(String(d.windowSec));
+      setLoopMsg("Saved.");
+    } catch (e2) {
+      setLoopMsg((e2 as Error).message);
+    } finally {
+      setSavingLoop(false);
+    }
+  }
 
   async function saveLocation(e: React.FormEvent) {
     e.preventDefault();
@@ -498,6 +535,29 @@ export default function Settings({ isAdmin }: { isAdmin: boolean }) {
             </button>
           </form>
           {locMsg && <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{locMsg}</p>}
+        </Section>
+
+        {/* Loop protection */}
+        <Section icon={<ShieldAlert size={16} />} title="Loop protection">
+          <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
+            If any switch turns on/off more than this many times within this many seconds, the app locks
+            itself to protect your devices. An admin can then unlock it.
+          </p>
+          <form onSubmit={saveLoopGuard} className="flex flex-wrap items-end gap-3">
+            <label className="text-sm text-slate-600 dark:text-slate-300">
+              <span className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">Max toggles</span>
+              <input value={maxToggles} onChange={(e) => setMaxToggles(e.target.value)} inputMode="numeric" className="field w-28" />
+            </label>
+            <label className="text-sm text-slate-600 dark:text-slate-300">
+              <span className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">Within (seconds)</span>
+              <input value={windowSec} onChange={(e) => setWindowSec(e.target.value)} inputMode="numeric" className="field w-28" />
+            </label>
+            <button type="submit" disabled={savingLoop} className="btn-primary">
+              {savingLoop ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}
+              Save
+            </button>
+          </form>
+          {loopMsg && <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{loopMsg}</p>}
         </Section>
 
         {/* Re-sync */}

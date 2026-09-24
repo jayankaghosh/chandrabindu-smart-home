@@ -22,6 +22,10 @@ function createServer(gateway, { secret, onReinit } = {}) {
   // Fan out value changes AND connect/disconnect state to all SSE clients.
   gateway.on("change", (evt) => broadcast("change", evt));
   gateway.on("state", (evt) => broadcast("state", evt));
+  // Loop-protection lock/unlock — pushes the "APP IS LOCKED" overlay to every
+  // browser instantly (the app's /api/events pipe relays these transparently).
+  gateway.on("lock", (evt) => broadcast("lock", evt));
+  gateway.on("unlock", (evt) => broadcast("unlock", evt));
 
   // Keepalive comment every 20s so idle SSE connections aren't dropped by a
   // reverse proxy's read timeout (nginx default 60s). Comments (":" lines) are

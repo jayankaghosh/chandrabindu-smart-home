@@ -22,6 +22,7 @@ import { favKey } from "./favKey";
 import Assistant from "./Assistant";
 import ThemeToggle from "./ThemeToggle";
 import ProtectedAlert from "./ProtectedAlert";
+import LockedOverlay from "./LockedOverlay";
 import ClassicDeprecationNotice from "./ClassicDeprecationNotice";
 import { setUiTheme } from "./uiTheme";
 
@@ -647,6 +648,8 @@ export default function Dashboard({
       {!isAdmin && showDeprecation && (
         <ClassicDeprecationNotice onSwitch={switchToSleek} onRemind={remindLater} />
       )}
+
+      <LockedOverlay isAdmin={isAdmin} />
     </div>
   );
 }

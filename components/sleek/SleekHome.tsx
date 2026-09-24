@@ -1,17 +1,18 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Star, LayoutGrid, Play, Zap, Sparkles, Lightbulb, WifiOff, Mic } from "lucide-react";
+import { Star, LayoutGrid, Play, Zap, Sparkles, Lightbulb, WifiOff, Mic, Link2 } from "lucide-react";
 import NavTile from "./NavTile";
 import { gridContainer } from "./motion";
 
-export type Section = "favourites" | "rooms" | "routines" | "automations" | "insights" | "voice";
+export type Section = "favourites" | "rooms" | "routines" | "automations" | "switchGroups" | "insights" | "voice";
 
 const SECTIONS: { key: Section; title: string; subtitle: string; icon: any; accent: string }[] = [
   { key: "favourites", title: "Favourites", subtitle: "Your starred switches", icon: Star, accent: "from-amber-400 to-orange-500" },
   { key: "rooms", title: "Rooms", subtitle: "Browse by room", icon: LayoutGrid, accent: "from-brand-500 to-brand-400" },
   { key: "routines", title: "Routines", subtitle: "Run a scene", icon: Play, accent: "from-fuchsia-500 to-pink-500" },
   { key: "automations", title: "Automations", subtitle: "If this, then that", icon: Zap, accent: "from-emerald-400 to-teal-500" },
+  { key: "switchGroups", title: "Switch Groups", subtitle: "Keep switches in sync", icon: Link2, accent: "from-indigo-500 to-blue-500" },
   { key: "insights", title: "Insights", subtitle: "Your home at a glance", icon: Sparkles, accent: "from-sky-400 to-cyan-500" },
   { key: "voice", title: "Voice", subtitle: "Talk to your home", icon: Mic, accent: "from-violet-500 to-purple-600" },
 ];

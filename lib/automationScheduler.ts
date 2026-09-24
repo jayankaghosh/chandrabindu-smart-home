@@ -14,7 +14,8 @@ import { listProtectedControls } from "./config";
 import { getStatusLocal, setCommandLocal } from "./local";
 import { getCatalogDevice } from "./store";
 import { getSunTimes, type SunTimes } from "./sunTimes";
-import { isTriggerCondition, type Automation, type AutomationCondition, type DeviceCondition } from "./types";
+import { isTriggerCondition, isRoutineAction, type Automation, type AutomationCondition, type DeviceCondition } from "./types";
+import { runRoutineActions } from "./runRoutine";
 import { logAction } from "./logger";
 
 const TICK_MS = 30_000;
@@ -118,6 +119,15 @@ async function fire(automation: Automation): Promise<void> {
   let ran = 0;
   let skippedProtected = 0;
   for (const action of automation.actions) {
+    if (isRoutineAction(action)) {
+      try {
+        await runRoutineActions(action.routineId);
+        ran++;
+      } catch {
+        /* a failed routine shouldn't stop the rest */
+      }
+      continue;
+    }
     if (protectedSet.has(`${action.deviceId}:${action.code}`)) {
       skippedProtected++;
       continue;

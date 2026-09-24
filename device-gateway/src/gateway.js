@@ -10,6 +10,7 @@ class Gateway extends EventEmitter {
   constructor() {
     super();
     this.connections = new Map(); // deviceId -> DeviceConnection
+    this.locked = false; // set by LoopGuard; when true, all commands are refused
   }
 
   // Build a fresh connection per catalog device. Reused by start() and reinit().
@@ -64,6 +65,9 @@ class Gateway extends EventEmitter {
   }
 
   async command(id, commands) {
+    // Hard stop: while the loop-protection lock is engaged, refuse every command
+    // from every source (automations, groups, protect-restore, the app).
+    if (this.locked) throw new Error("app is locked (loop protection)");
     const conn = this.get(id);
     if (!conn) throw new Error("unknown device");
     return conn.command(commands);

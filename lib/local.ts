@@ -16,12 +16,21 @@ import type {
   DeviceStatus,
 } from "./types";
 import { readCatalog, writeCatalog } from "./store";
+import { isAppLocked } from "./config";
 import {
   gatewayConfigured,
   gatewayGetStatus,
   gatewayCommand,
   GatewayUnavailable,
 } from "./gateway";
+
+/** Thrown by setCommandLocal when the app-wide safety lock is engaged. */
+export class AppLockedError extends Error {
+  constructor() {
+    super("App is locked (loop protection). An admin must unlock it.");
+    this.name = "AppLockedError";
+  }
+}
 
 const VERSIONS = ["3.4", "3.3", "3.5", "3.1"];
 const FIND_TIMEOUT = 7; // seconds
@@ -529,6 +538,9 @@ export async function setCommandLocal(
   meta: CatalogDevice,
   commands: CommandRequest[],
 ): Promise<boolean> {
+  // Safety lock: when the loop-protection kill switch has tripped, refuse ALL
+  // actuation (manual, routines, voice, AI, scheduler) until an admin unlocks.
+  if (isAppLocked()) throw new AppLockedError();
   // Prefer the gateway (sends over its already-open connection). Fall back to a
   // direct command only if the gateway itself is unreachable.
   if (gatewayConfigured()) {

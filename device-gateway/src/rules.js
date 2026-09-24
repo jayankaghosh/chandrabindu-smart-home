@@ -13,8 +13,11 @@ const fs = require("fs");
 const path = require("path");
 
 const AUTOMATIONS_PATH = path.join(__dirname, "..", "..", "data", "automations.json");
+const ROUTINES_PATH = path.join(__dirname, "..", "..", "data", "routines.json");
 const CONFIG_PATH = path.join(__dirname, "..", "..", "data", "config.json");
 const COOLDOWN_MS = 3000;
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function readJson(p, fallback) {
   try {
@@ -34,6 +37,13 @@ function loadAutomations() {
   return list.filter(
     (r) => !(Array.isArray(r.conditions) && r.conditions.some((c) => c && (c.type === "time" || c.type === "sun"))),
   );
+}
+
+function loadRoutine(routineId) {
+  const parsed = readJson(ROUTINES_PATH, null);
+  const list = Array.isArray(parsed) ? parsed : parsed && parsed.routines;
+  if (!Array.isArray(list)) return null;
+  return list.find((r) => r && r.id === routineId) || null;
 }
 
 function loadProtected() {
@@ -122,6 +132,10 @@ class RuleEngine {
   async fire(rule) {
     console.log(`[automation] "${rule.name}" triggered — running ${rule.actions.length} action(s)`);
     for (const action of rule.actions) {
+      if (action && action.type === "routine") {
+        await this.runRoutine(action.routineId);
+        continue;
+      }
       if (this.protectedSet.has(`${action.deviceId}::${action.code}`)) {
         console.log(`[automation]   skip protected control ${action.code} on ${action.deviceId}`);
         continue;
@@ -131,6 +145,27 @@ class RuleEngine {
         console.log(`[automation]   set ${action.deviceId} ${action.code} = ${JSON.stringify(action.value)}`);
       } catch (e) {
         console.log(`[automation]   FAILED ${action.deviceId} ${action.code}: ${e.message}`);
+      }
+    }
+  }
+
+  // Run a saved routine's actions (in order, honoring delays), skipping
+  // protected controls — used by a "run routine" automation action.
+  async runRoutine(routineId) {
+    const routine = loadRoutine(routineId);
+    if (!routine || !Array.isArray(routine.actions)) {
+      console.log(`[automation]   routine ${routineId} not found`);
+      return;
+    }
+    console.log(`[automation]   run routine "${routine.name}" (${routine.actions.length} action(s))`);
+    for (const a of routine.actions) {
+      if (this.protectedSet.has(`${a.deviceId}::${a.code}`)) continue;
+      const delay = Math.max(0, Number(a.delayMs) || 0);
+      if (delay) await sleep(delay);
+      try {
+        await this.gateway.command(a.deviceId, [{ code: a.code, value: a.value }]);
+      } catch (e) {
+        console.log(`[automation]   routine FAILED ${a.deviceId} ${a.code}: ${e.message}`);
       }
     }
   }

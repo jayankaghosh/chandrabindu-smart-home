@@ -18,8 +18,10 @@ import SleekRoomSwitcher from "./SleekRoomSwitcher";
 import SleekFavourites from "./SleekFavourites";
 import SleekRoutines from "./SleekRoutines";
 import SleekAutomations from "./SleekAutomations";
+import SleekSwitchGroups from "./SleekSwitchGroups";
 import SleekVoice from "./SleekVoice";
 import ProtectedAlert from "../ProtectedAlert";
+import LockedOverlay from "../LockedOverlay";
 import { screenTransition, screenVariants } from "./motion";
 
 type Screen =
@@ -29,11 +31,12 @@ type Screen =
   | { k: "room"; roomId: string }
   | { k: "routines" }
   | { k: "automations" }
+  | { k: "switchGroups" }
   | { k: "insights" }
   | { k: "voice" };
 
 const NAV_KEY = "sleek-nav";
-const SCREEN_KINDS = ["home", "favourites", "rooms", "room", "routines", "automations", "insights", "voice"];
+const SCREEN_KINDS = ["home", "favourites", "rooms", "room", "routines", "automations", "switchGroups", "insights", "voice"];
 
 // Restore the last-viewed navigation stack (so a refresh lands where you were).
 function loadNav(): Screen[] {
@@ -170,6 +173,8 @@ export default function SleekApp({ role, username }: { role: "admin" | "user"; u
               ? "Routines"
               : screen.k === "automations"
                 ? "Automations"
+                : screen.k === "switchGroups"
+                ? "Switch Groups"
                 : screen.k === "voice"
                   ? "Voice"
                   : "Insights";
@@ -318,6 +323,9 @@ export default function SleekApp({ role, username }: { role: "admin" | "user"; u
               {screen.k === "automations" && (
                 <SleekAutomations rooms={rooms ?? []} isAdmin={isAdmin} editMode={editMode} />
               )}
+              {screen.k === "switchGroups" && (
+                <SleekSwitchGroups rooms={rooms ?? []} isAdmin={isAdmin} editMode={editMode} />
+              )}
               {screen.k === "voice" && <SleekVoice />}
               {screen.k === "insights" && <Insights isAdmin={isAdmin} />}
             </motion.div>
@@ -334,6 +342,8 @@ export default function SleekApp({ role, username }: { role: "admin" | "user"; u
           onDismiss={() => setProtDismissed(true)}
         />
       )}
+
+      <LockedOverlay isAdmin={isAdmin} />
     </div>
   );
 }

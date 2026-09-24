@@ -213,10 +213,39 @@ export function isTriggerCondition(c: AutomationCondition): c is TimeCondition |
 }
 
 /** One THEN action: set a device control to a value. */
-export interface AutomationAction {
+export interface DeviceAction {
+  type?: "device";
   deviceId: string;
   code: string;
   value: unknown;
+}
+
+/** One THEN action: run a saved routine (its actions run in order). */
+export interface RunRoutineAction {
+  type: "routine";
+  routineId: string;
+}
+
+export type AutomationAction = DeviceAction | RunRoutineAction;
+
+/** True for the run-routine automation action type. */
+export function isRoutineAction(a: AutomationAction): a is RunRoutineAction {
+  return (a as RunRoutineAction).type === "routine";
+}
+
+// ── Switch groups ────────────────────────────────────────────────────────────
+// A named set of Boolean switches kept in sync by the gateway: when any member
+// toggles, the rest are driven to the same on/off value.
+
+export interface SwitchGroupMember {
+  deviceId: string;
+  code: string;
+}
+
+export interface SwitchGroup {
+  id: string;
+  name: string;
+  members: SwitchGroupMember[];
 }
 
 export interface Automation {

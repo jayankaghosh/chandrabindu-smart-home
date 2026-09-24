@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, Trash2, Loader2, X, Check, Zap, ArrowRight, Pencil, Power, Clock, Sunrise } from "lucide-react";
+import { Plus, Trash2, Loader2, X, Check, Zap, ArrowRight, Pencil, Power, Clock, Sunrise, Sparkles } from "lucide-react";
 import type {
   Room,
   DeviceFunction,
@@ -10,7 +10,7 @@ import type {
   AutomationCondition,
   AutomationAction,
 } from "@/lib/types";
-import { isTriggerCondition } from "@/lib/types";
+import { isTriggerCondition, isRoutineAction } from "@/lib/types";
 
 type Clause = { deviceId: string; code: string; value: unknown };
 
@@ -71,12 +71,21 @@ export default function Automations({ rooms, isAdmin }: { rooms: Room[]; isAdmin
     [byId],
   );
 
+  const [routineNames, setRoutineNames] = useState<Record<string, string>>({});
   const load = useCallback(async () => {
     const res = await fetch("/api/automations");
     if (res.ok) setAutomations((await res.json()).automations);
   }, []);
   useEffect(() => {
     load();
+    fetch("/api/routines")
+      .then((r) => r.json())
+      .then((d) => {
+        const map: Record<string, string> = {};
+        for (const r of d.routines ?? []) map[r.id] = r.name;
+        setRoutineNames(map);
+      })
+      .catch(() => {});
   }, [load]);
 
   async function toggle(a: Automation) {
@@ -205,7 +214,7 @@ export default function Automations({ rooms, isAdmin }: { rooms: Room[]; isAdmin
             <div className="my-2 flex items-center gap-2 px-1 text-slate-300 dark:text-slate-600">
               <ArrowRight size={14} />
             </div>
-            <ClauseList label="THEN" tone="then" clauses={a.actions} describe={describe} />
+            <ClauseList label="THEN" tone="then" clauses={a.actions} describe={describe} routineNames={routineNames} />
           </div>
         ))}
       </div>
@@ -219,12 +228,14 @@ function ClauseList({
   clauses,
   describe,
   joiner,
+  routineNames,
 }: {
   label: string;
   tone: "if" | "then";
   clauses: (AutomationCondition | AutomationAction)[];
   describe: (c: Clause) => { device: string; room: string; control: string; value: string };
   joiner?: string;
+  routineNames?: Record<string, string>;
 }) {
   return (
     <div>
@@ -238,13 +249,18 @@ function ClauseList({
       <ul className="space-y-1">
         {clauses.map((c, i) => {
           const trigger = isTriggerCondition(c as AutomationCondition);
-          const d = trigger ? null : describe(c as Clause);
+          const routine = isRoutineAction(c as AutomationAction);
+          const d = trigger || routine ? null : describe(c as Clause);
           return (
             <li key={i} className="text-sm text-slate-600 dark:text-slate-300">
               {joiner && i > 0 && (
                 <span className="mr-1 text-[10px] font-bold text-slate-400 dark:text-slate-500">{joiner}</span>
               )}
-              {trigger ? (
+              {routine ? (
+                <span className="font-medium text-slate-900 dark:text-slate-100">
+                  ▶ Run {routineNames?.[(c as { routineId: string }).routineId] ?? "routine"}
+                </span>
+              ) : trigger ? (
                 <span className="font-medium text-slate-900 dark:text-slate-100">{triggerLabel(c as AutomationCondition)}</span>
               ) : (
                 <>
@@ -275,7 +291,17 @@ function AutomationBuilder({
   const [name, setName] = useState(initial?.name ?? "");
   const [match, setMatch] = useState<"all" | "any">(initial?.match ?? "all");
   const [conditions, setConditions] = useState<AutomationCondition[]>(initial?.conditions ?? []);
-  const [actions, setActions] = useState<Clause[]>(initial?.actions ?? []);
+  const [actions, setActions] = useState<AutomationAction[]>(initial?.actions ?? []);
+
+  // Device actions drive the shared ClauseEditor; routine actions are kept
+  // alongside and edited by the RoutineActionEditor below.
+  const deviceActions = actions.filter((a) => !isRoutineAction(a)) as Clause[];
+  const setDeviceActions = (fn: (c: Clause[]) => Clause[]) =>
+    setActions((prev) => {
+      const routines = prev.filter(isRoutineAction);
+      const next = fn(prev.filter((a) => !isRoutineAction(a)) as Clause[]);
+      return [...next.map((d) => ({ type: "device" as const, ...d })), ...routines];
+    });
 
   // The device-guard subset drives the shared ClauseEditor; triggers (time/sun)
   // are kept alongside and edited by the TriggerEditor below.
@@ -387,7 +413,15 @@ function AutomationBuilder({
         <span className="mb-2 block text-xs font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-300">
           THEN
         </span>
-        <ClauseEditor rooms={rooms} clauses={actions} setClauses={setActions} lookup={lookup} />
+        <ClauseEditor rooms={rooms} clauses={deviceActions} setClauses={setDeviceActions} lookup={lookup} />
+        <RoutineActionEditor
+          routineActions={actions.filter(isRoutineAction)}
+          onAdd={(routineId) => setActions((prev) => [...prev, { type: "routine", routineId }])}
+          onRemoveAt={(idx) => {
+            let seen = -1;
+            setActions((prev) => prev.filter((a) => (isRoutineAction(a) ? ++seen !== idx : true)));
+          }}
+        />
       </div>
 
       {error && <p className="mb-3 text-sm text-red-500">{error}</p>}
@@ -491,6 +525,71 @@ function TriggerEditor({
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+// "Run a routine" actions for the THEN section.
+function RoutineActionEditor({
+  routineActions,
+  onAdd,
+  onRemoveAt,
+}: {
+  routineActions: AutomationAction[];
+  onAdd: (routineId: string) => void;
+  onRemoveAt: (idx: number) => void;
+}) {
+  const [routines, setRoutines] = useState<{ id: string; name: string }[]>([]);
+  const [pick, setPick] = useState("");
+  useEffect(() => {
+    fetch("/api/routines")
+      .then((r) => r.json())
+      .then((d) => {
+        const list = (d.routines ?? []).map((r: any) => ({ id: r.id, name: r.name }));
+        setRoutines(list);
+        if (list[0]) setPick(list[0].id);
+      })
+      .catch(() => {});
+  }, []);
+  const nameOf = (id: string) => routines.find((r) => r.id === id)?.name ?? "routine";
+
+  return (
+    <div className="mt-2">
+      {routineActions.length > 0 && (
+        <ul className="mb-2 space-y-1.5">
+          {routineActions.map((a, i) => (
+            <li
+              key={i}
+              className="flex items-center justify-between gap-2 rounded-lg border border-white/60 bg-white/40 px-3 py-1.5 text-sm dark:border-white/10 dark:bg-white/[0.05]"
+            >
+              <span className="flex items-center gap-2 text-slate-700 dark:text-slate-200">
+                <Sparkles size={14} className="text-emerald-500" /> Run{" "}
+                <span className="font-medium">{isRoutineAction(a) ? nameOf(a.routineId) : ""}</span>
+              </span>
+              <button onClick={() => onRemoveAt(i)} aria-label="Remove routine action" className="text-slate-400 hover:text-red-500">
+                <Trash2 size={14} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {routines.length === 0 ? (
+        <p className="text-xs text-slate-500 dark:text-slate-400">No routines yet — create one under Routines first.</p>
+      ) : (
+        <div className="flex flex-wrap items-center gap-2">
+          <Sparkles size={14} className="text-slate-400" />
+          <select value={pick} onChange={(e) => setPick(e.target.value)} className="field !py-1.5 w-48">
+            {routines.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.name}
+              </option>
+            ))}
+          </select>
+          <button onClick={() => pick && onAdd(pick)} className="btn-ghost !py-1.5">
+            <Plus size={14} /> Run routine
+          </button>
+        </div>
+      )}
     </div>
   );
 }

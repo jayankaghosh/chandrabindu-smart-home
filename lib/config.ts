@@ -60,6 +60,16 @@ interface AppConfig {
   openaiRealtime?: { apiKey: string; model?: string; voice?: string; enabled?: boolean; idleTimeoutSec?: number };
   /** House location for sunrise/sunset automation triggers. */
   location?: { lat: number; lng: number };
+  /**
+   * App-wide safety lock. Tripped by the gateway's LoopGuard when a switch
+   * toggles too fast (runaway loop). While true, all actuation is refused until
+   * an admin unlocks. `lockInfo` records which switch tripped it and when.
+   */
+  locked?: boolean;
+  lockInfo?: { at: number; reason?: string; deviceId?: string; code?: string };
+  /** Loop-guard thresholds: trip the lock if one switch toggles more than
+   *  `maxToggles` times within `windowSec` seconds. Defaults 20 / 20. */
+  loopGuard?: { maxToggles: number; windowSec: number };
 }
 
 /** Public (no secret) view of a user, for the settings UI. */
@@ -127,6 +137,9 @@ export function setPassword(password: string): void {
     openrouter: existing?.openrouter,
     openaiRealtime: existing?.openaiRealtime,
     location: existing?.location,
+    locked: existing?.locked,
+    lockInfo: existing?.lockInfo,
+    loopGuard: existing?.loopGuard,
   };
   write(config);
 }
@@ -369,6 +382,52 @@ export function setAutoRestoreProtected(enabled: boolean): void {
   const config = read();
   if (!config) throw new Error("App is not onboarded yet");
   write({ ...config, autoRestoreProtected: enabled });
+}
+
+// ── App-wide safety lock (loop-protection kill switch) ───────────────────────
+
+/** Is the app currently LOCKED (all actuation refused)? */
+export function isAppLocked(): boolean {
+  return read()?.locked === true;
+}
+
+/** The lock reason/metadata, or null when unlocked. */
+export function getLockInfo(): AppConfig["lockInfo"] | null {
+  const cfg = read();
+  return cfg?.locked ? cfg.lockInfo ?? { at: Date.now() } : null;
+}
+
+/** Set or clear the app lock. Passing false clears the lock and its info. */
+export function setAppLocked(locked: boolean, info?: AppConfig["lockInfo"]): void {
+  const config = read();
+  if (!config) throw new Error("App is not onboarded yet");
+  if (locked) write({ ...config, locked: true, lockInfo: info ?? { at: Date.now() } });
+  else {
+    const { locked: _l, lockInfo: _i, ...rest } = config;
+    write(rest);
+  }
+}
+
+export const DEFAULT_LOOP_MAX_TOGGLES = 20;
+export const DEFAULT_LOOP_WINDOW_SEC = 20;
+
+/** Loop-guard thresholds (with defaults). */
+export function getLoopGuard(): { maxToggles: number; windowSec: number } {
+  const lg = read()?.loopGuard;
+  const maxToggles = Number.isFinite(lg?.maxToggles) && (lg?.maxToggles ?? 0) > 0 ? lg!.maxToggles : DEFAULT_LOOP_MAX_TOGGLES;
+  const windowSec = Number.isFinite(lg?.windowSec) && (lg?.windowSec ?? 0) > 0 ? lg!.windowSec : DEFAULT_LOOP_WINDOW_SEC;
+  return { maxToggles, windowSec };
+}
+
+/** Update loop-guard thresholds (superadmin); clamps to sane ranges. */
+export function setLoopGuard(maxToggles: number, windowSec: number): void {
+  const config = read();
+  if (!config) throw new Error("App is not onboarded yet");
+  const clamped = {
+    maxToggles: Math.max(2, Math.min(1000, Math.round(maxToggles))),
+    windowSec: Math.max(2, Math.min(3600, Math.round(windowSec))),
+  };
+  write({ ...config, loopGuard: clamped });
 }
 
 /** Mark or unmark a single control as protected (admin). */

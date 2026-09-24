@@ -32,14 +32,19 @@ function isAutomation(x: any): x is Automation {
   return x && typeof x.id === "string" && Array.isArray(x.conditions) && Array.isArray(x.actions);
 }
 
-/** Actions are always device sets: keep only well-formed {deviceId, code, value}. */
+/** Actions are either a device set {deviceId, code, value} or a run-routine {routineId}. */
 function cleanActions(raw: unknown): AutomationAction[] {
   if (!Array.isArray(raw)) return [];
-  return raw
-    .filter(
-      (a: any) => a && typeof a.deviceId === "string" && typeof a.code === "string" && "value" in a,
-    )
-    .map((a: any) => ({ deviceId: a.deviceId, code: a.code, value: a.value }));
+  const out: AutomationAction[] = [];
+  for (const a of raw as any[]) {
+    if (!a) continue;
+    if (a.type === "routine") {
+      if (typeof a.routineId === "string" && a.routineId) out.push({ type: "routine", routineId: a.routineId });
+    } else if (typeof a.deviceId === "string" && typeof a.code === "string" && "value" in a) {
+      out.push({ type: "device", deviceId: a.deviceId, code: a.code, value: a.value });
+    }
+  }
+  return out;
 }
 
 /**

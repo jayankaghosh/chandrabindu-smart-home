@@ -10,6 +10,8 @@ const { Gateway } = require("./gateway");
 const { createServer } = require("./server");
 const { RuleEngine } = require("./rules");
 const { ProtectedGuard } = require("./protect");
+const { GroupSyncEngine } = require("./groups");
+const { LoopGuard } = require("./loopguard");
 
 const PORT = Number(process.env.GATEWAY_PORT || 4000);
 const HOST = process.env.GATEWAY_HOST || "127.0.0.1"; // localhost-only by default
@@ -26,6 +28,14 @@ rules.start();
 const guard = new ProtectedGuard(gateway);
 guard.start();
 
+// Switch-group sync: keeps each group's members on/off together.
+const groups = new GroupSyncEngine(gateway);
+groups.start();
+
+// Loop-protection kill switch: LOCKS the app if a switch toggles too fast.
+const loopGuard = new LoopGuard(gateway);
+loopGuard.start();
+
 // Log changes to stdout so `journalctl`/pm2 logs show live activity.
 gateway.on("change", (e) => {
   console.log(`[change] ${e.deviceName} · ${e.name} (${e.code}) = ${JSON.stringify(e.value)} [${e.source}]`);
@@ -37,6 +47,8 @@ const server = createServer(gateway, {
   onReinit: () => {
     const health = gateway.reinit();
     rules.reload();
+    groups.reload();
+    loopGuard.reload();
     return health;
   },
 });

@@ -120,10 +120,12 @@ to the browser), `app/api/gateway/route.ts` + `app/api/gateway/reinit/route.ts`
 
 | File / dir | Contents | Written by |
 |------------|----------|------------|
-| `config.json` | Admin `passwordHash`/`Salt`, auto-generated `sessionSecret`, `houseName`, `users[]` (standard users), room locks, Tuya creds, insights model, **protected controls** | onboarding, Settings, `lib/config.ts` |
+| `config.json` | Admin `passwordHash`/`Salt`, auto-generated `sessionSecret`, `houseName`, `users[]` (standard users), room locks, Tuya creds, insights model, **protected controls**, `location` (lat/lng), app `locked`+`lockInfo`, `loopGuard` thresholds | onboarding, Settings, `lib/config.ts` (+ gateway `loopguard.js` writes `locked`) |
 | `catalog.json` | Synced device catalog: `rooms[]` + `devices[]` (id, **key**, version, category, cloudName, functions with dpId/type/name/range) | cloud sync, `lib/store.ts` |
 | `overrides.json` | Local edits that survive re-sync: `deviceRoom`, `deviceName`, `roomName`, `controlName`, `extraRooms` | Settings/rename, `lib/store.ts` |
-| `automations.json` | `automations[]` (match all/any, conditions[], actions[]) | web UI, `lib/automations.ts` |
+| `automations.json` | `automations[]` (match all/any, conditions[] incl. time/sun triggers, actions[] incl. run-routine) | web UI, `lib/automations.ts` |
+| `switchGroups.json` | `groups[]` (name + member switches kept in sync) | web UI, `lib/switchGroups.ts` |
+| `suntimes.json` / `automationFired.json` | Cached daily sun times / per-trigger fired dates | `lib/sunTimes.ts`, `lib/automationScheduler.ts` |
 | `routines.json` | Routines (named lists of actions) | web UI, `lib/store.ts` |
 | `favourites/<username>.json` | Per-user starred controls (`{deviceId, code}[]`) | `lib/favourites.ts` |
 | `insights/<days>d_<date>.json` | Cached LLM insight reports | `lib/insights.ts` |
@@ -225,6 +227,34 @@ real time when the gateway is up.
   (voice → `POST /api/voice/memory`); both route through the same
   `applyMemoryUpdate(username, update, {isAdmin})`. Existing `admin.json` stays
   the admin's personal memory (no migration; core starts empty).
+- **Run-routine automation action** (`lib/types.ts` `RunRoutineAction`): a THEN
+  action can be `{type:"routine", routineId}` instead of a device set. Executed
+  by both evaluators — the app scheduler via `lib/runRoutine.ts` (`runRoutineActions`,
+  session-less, skips protected, honors delays) and the gateway `RuleEngine.runRoutine()`
+  (loads `routines.json`). Authored via a Device/Routine toggle in both builders.
+- **Switch Groups** (`lib/switchGroups.ts`, `data/switchGroups.json`,
+  `/api/switch-groups`, `components/sleek/SleekSwitchGroups.tsx`): named sets of
+  Boolean switches kept in sync — any member on → all on, any off → all off.
+  Synced by the **gateway** `GroupSyncEngine` (`device-gateway/src/groups.js`) on
+  the `change` stream; loop-safe because it only commands a member whose cached
+  value differs from the target (the fan-out self-terminates), and skips protected
+  members. Sleek-only authoring (admin + Edit Mode), a home section + `switchGroups`
+  screen.
+- **Loop-protection kill switch / app lock** (`config.json#locked`+`lockInfo`,
+  `device-gateway/src/loopguard.js`, `components/LockedOverlay.tsx`,
+  `/api/lock`, `/api/loop-guard`): the gateway `LoopGuard` counts real toggles per
+  switch in a sliding window; if one switch toggles more than `maxToggles` times
+  within `windowSec` seconds (config `loopGuard`, **default 20/20**, set in
+  Settings → Loop protection), it **TRIPS**: writes `locked:true` to `config.json`
+  (read-merge-write), emits a `lock` SSE event, logs `LOOP_LOCK`. On trip it does
+  **NOT** touch devices — it just halts. Enforcement: the gateway's
+  `gateway.command()` refuses while `gateway.locked`, and the app's single choke
+  point `setCommandLocal()` throws `AppLockedError` (blocks manual/routines/voice/
+  AI/scheduler at once → `/api/rooms` also returns `locked`). Every client shows the
+  non-dismissible `LockedOverlay` ("APP IS LOCKED", polls `/api/lock`); **admins get
+  Unlock** (`PUT /api/lock {locked:false}`), which the gateway sees via its config
+  watch and resets its counters. Getters/setters: `isAppLocked`/`setAppLocked`/
+  `getLockInfo`, `getLoopGuard`/`setLoopGuard` in `lib/config.ts`.
 - **Protected controls** (`config.json`, `/api/devices/[id]/protect`,
   `/api/protected`): controls that should stay ON (e.g. a modem). `/api/protected`
   (admin-only) reports live state. **Both themes** show the intrusive popup
