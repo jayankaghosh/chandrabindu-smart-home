@@ -12,6 +12,7 @@ const LS_KEY = "sleek-screensaver-on";
 export default function SleekScreensaverSettings({ isAdmin }: { isAdmin: boolean }) {
   const [enabled, setEnabled] = useState(false);
   const [idleSec, setIdleSec] = useState("120");
+  const [imageSec, setImageSec] = useState("12");
   const [images, setImages] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
@@ -26,6 +27,7 @@ export default function SleekScreensaverSettings({ isAdmin }: { isAdmin: boolean
       .then((r) => r.json())
       .then((d) => {
         setIdleSec(String(d.idleSec ?? 120));
+        setImageSec(String(d.imageSec ?? 12));
         setImages(d.images ?? []);
       })
       .catch(() => {});
@@ -40,16 +42,19 @@ export default function SleekScreensaverSettings({ isAdmin }: { isAdmin: boolean
     window.dispatchEvent(new Event("sleek-screensaver-change"));
   }
 
-  async function saveIdle() {
+  async function saveTimings() {
     if (!isAdmin) return;
     try {
       const res = await fetch("/api/screensaver", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idleSec: Number(idleSec) }),
+        body: JSON.stringify({ idleSec: Number(idleSec), imageSec: Number(imageSec) }),
       });
       const d = await res.json();
-      if (res.ok) setIdleSec(String(d.idleSec));
+      if (res.ok) {
+        setIdleSec(String(d.idleSec));
+        setImageSec(String(d.imageSec));
+      }
     } catch {}
   }
 
@@ -138,14 +143,24 @@ export default function SleekScreensaverSettings({ isAdmin }: { isAdmin: boolean
 
       {isAdmin && (
         <>
-          {/* Idle delay */}
+          {/* Timings */}
           <div className="flex flex-wrap items-end gap-3">
             <label className="text-sm text-slate-600 dark:text-slate-300">
               <span className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">Idle before showing (seconds)</span>
               <input
                 value={idleSec}
                 onChange={(e) => setIdleSec(e.target.value)}
-                onBlur={saveIdle}
+                onBlur={saveTimings}
+                inputMode="numeric"
+                className="field w-32"
+              />
+            </label>
+            <label className="text-sm text-slate-600 dark:text-slate-300">
+              <span className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">Seconds per image</span>
+              <input
+                value={imageSec}
+                onChange={(e) => setImageSec(e.target.value)}
+                onBlur={saveTimings}
                 inputMode="numeric"
                 className="field w-32"
               />

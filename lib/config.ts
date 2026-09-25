@@ -70,8 +70,9 @@ interface AppConfig {
   /** Loop-guard thresholds: trip the lock if one switch toggles more than
    *  `maxToggles` times within `windowSec` seconds. Defaults 20 / 20. */
   loopGuard?: { maxToggles: number; windowSec: number };
-  /** Idle screensaver: after `idleSec` of no input, show a clock + these images. */
-  screensaver?: { enabled: boolean; idleSec: number; images: string[] };
+  /** Idle screensaver: after `idleSec` of no input, show a clock + these images,
+   *  advancing to the next image every `imageSec`. */
+  screensaver?: { enabled: boolean; idleSec: number; imageSec?: number; images: string[] };
 }
 
 /** Public (no secret) view of a user, for the settings UI. */
@@ -436,19 +437,21 @@ export function setLoopGuard(maxToggles: number, windowSec: number): void {
 // ── Screensaver ──────────────────────────────────────────────────────────────
 
 export const DEFAULT_SCREENSAVER_IDLE_SEC = 120;
+export const DEFAULT_SCREENSAVER_IMAGE_SEC = 12;
 
 /** Screensaver settings (with defaults). `images` are stored file ids. */
-export function getScreensaver(): { enabled: boolean; idleSec: number; images: string[] } {
+export function getScreensaver(): { enabled: boolean; idleSec: number; imageSec: number; images: string[] } {
   const s = read()?.screensaver;
   return {
     enabled: s?.enabled === true,
     idleSec: Number.isFinite(s?.idleSec) && (s?.idleSec ?? 0) >= 10 ? s!.idleSec : DEFAULT_SCREENSAVER_IDLE_SEC,
+    imageSec: Number.isFinite(s?.imageSec) && (s?.imageSec ?? 0) >= 2 ? s!.imageSec! : DEFAULT_SCREENSAVER_IMAGE_SEC,
     images: Array.isArray(s?.images) ? s!.images : [],
   };
 }
 
-/** Update the enabled flag / idle seconds (superadmin). */
-export function setScreensaver(patch: { enabled?: boolean; idleSec?: number }): void {
+/** Update the enabled flag / idle seconds / seconds-per-image (superadmin). */
+export function setScreensaver(patch: { enabled?: boolean; idleSec?: number; imageSec?: number }): void {
   const config = read();
   if (!config) throw new Error("App is not onboarded yet");
   const cur = getScreensaver();
@@ -460,6 +463,10 @@ export function setScreensaver(patch: { enabled?: boolean; idleSec?: number }): 
         typeof patch.idleSec === "number" && Number.isFinite(patch.idleSec)
           ? Math.max(10, Math.min(3600, Math.round(patch.idleSec)))
           : cur.idleSec,
+      imageSec:
+        typeof patch.imageSec === "number" && Number.isFinite(patch.imageSec)
+          ? Math.max(2, Math.min(600, Math.round(patch.imageSec)))
+          : cur.imageSec,
       images: cur.images,
     },
   });
@@ -471,7 +478,7 @@ export function updateScreensaverImages(mutate: (ids: string[]) => string[]): st
   if (!config) throw new Error("App is not onboarded yet");
   const cur = getScreensaver();
   const images = mutate([...cur.images]);
-  write({ ...config, screensaver: { enabled: cur.enabled, idleSec: cur.idleSec, images } });
+  write({ ...config, screensaver: { enabled: cur.enabled, idleSec: cur.idleSec, imageSec: cur.imageSec, images } });
   return images;
 }
 

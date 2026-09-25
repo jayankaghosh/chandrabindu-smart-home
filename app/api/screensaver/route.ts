@@ -16,7 +16,7 @@ export async function GET() {
 export async function PUT(req: Request) {
   const denied = guard({ admin: true });
   if (denied) return denied;
-  let body: { enabled?: unknown; idleSec?: unknown } = {};
+  let body: { enabled?: unknown; idleSec?: unknown; imageSec?: unknown } = {};
   try {
     body = await req.json();
   } catch {
@@ -25,6 +25,7 @@ export async function PUT(req: Request) {
   setScreensaver({
     enabled: typeof body.enabled === "boolean" ? body.enabled : undefined,
     idleSec: typeof body.idleSec === "number" ? body.idleSec : undefined,
+    imageSec: typeof body.imageSec === "number" ? body.imageSec : undefined,
   });
   logAction("SCREENSAVER_CONFIG", getScreensaver());
   return NextResponse.json(getScreensaver());

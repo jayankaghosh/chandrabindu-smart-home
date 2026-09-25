@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "framer-motion";
 
 interface Cfg {
   idleSec: number;
+  imageSec: number;
   images: string[];
 }
 
@@ -22,7 +23,7 @@ const LS_KEY = "sleek-screensaver-on";
 // cross-fading admin-uploaded images. Any touch/mouse/key dismisses it. Sits
 // below the safety lock (z-[80] < LockedOverlay z-[90]).
 export default function SleekScreensaver({ stats }: { stats?: ScreensaverStats }) {
-  const [cfg, setCfg] = useState<Cfg>({ idleSec: 120, images: [] });
+  const [cfg, setCfg] = useState<Cfg>({ idleSec: 120, imageSec: 12, images: [] });
   const [enabled, setEnabled] = useState(false); // per-device (localStorage)
   const [active, setActive] = useState(false);
   const [now, setNow] = useState<Date | null>(null);
@@ -55,7 +56,7 @@ export default function SleekScreensaver({ stats }: { stats?: ScreensaverStats }
     const load = () =>
       fetch("/api/screensaver")
         .then((r) => r.json())
-        .then((d) => setCfg({ idleSec: Number(d.idleSec) || 120, images: d.images ?? [] }))
+        .then((d) => setCfg({ idleSec: Number(d.idleSec) || 120, imageSec: Number(d.imageSec) || 12, images: d.images ?? [] }))
         .catch(() => {});
     load();
     const t = setInterval(load, 300_000);
@@ -94,12 +95,15 @@ export default function SleekScreensaver({ stats }: { stats?: ScreensaverStats }
     if (!active) return;
     setNow(new Date());
     const clock = setInterval(() => setNow(new Date()), 1000);
-    const rotate = cfg.images.length > 1 ? setInterval(() => setImgIdx((i) => (i + 1) % cfg.images.length), 12_000) : null;
+    const rotate =
+      cfg.images.length > 1
+        ? setInterval(() => setImgIdx((i) => (i + 1) % cfg.images.length), Math.max(2, cfg.imageSec) * 1000)
+        : null;
     return () => {
       clearInterval(clock);
       if (rotate) clearInterval(rotate);
     };
-  }, [active, cfg.images.length]);
+  }, [active, cfg.images.length, cfg.imageSec]);
 
   const time = now
     ? now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
@@ -116,7 +120,7 @@ export default function SleekScreensaver({ stats }: { stats?: ScreensaverStats }
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.8 }}
-          className="fixed inset-0 z-[80] flex items-center justify-center overflow-hidden bg-black"
+          className="fixed inset-0 z-[80] overflow-hidden bg-black"
           onClick={() => setActive(false)}
         >
           {/* Cross-fading background images */}
@@ -134,15 +138,16 @@ export default function SleekScreensaver({ stats }: { stats?: ScreensaverStats }
               />
             )}
           </AnimatePresence>
-          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-black/40" />
+          {/* Subtle corner scrim so the text stays legible over any image. */}
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-tl from-black/70 via-transparent to-transparent" />
 
-          {/* Clock */}
-          <div className="relative text-center text-white drop-shadow-lg">
-            <div className="text-[16vw] font-bold leading-none tracking-tight tabular-nums sm:text-[12vw]">{time}</div>
-            <div className="mt-2 text-xl font-medium text-white/80 sm:text-2xl">{date}</div>
+          {/* Clock + stats, tucked into the bottom-right so the photo shows. */}
+          <div className="absolute bottom-8 right-8 max-w-[90vw] text-right text-white drop-shadow-lg">
+            <div className="text-6xl font-bold leading-none tracking-tight tabular-nums sm:text-7xl">{time}</div>
+            <div className="mt-1.5 text-base font-medium text-white/80 sm:text-lg">{date}</div>
             {stats && (
-              <div className="mt-6 flex justify-center">
-                <div className="inline-flex flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-full bg-black/35 px-4 py-2 text-sm font-medium text-white/85 shadow-lg ring-1 ring-white/15 backdrop-blur-md">
+              <div className="mt-4 flex justify-end">
+                <div className="inline-flex flex-wrap items-center justify-end gap-x-3 gap-y-1 rounded-full bg-black/35 px-4 py-2 text-sm font-medium text-white/85 shadow-lg ring-1 ring-white/15 backdrop-blur-md">
                   <span>{stats.rooms} rooms</span>
                   <span aria-hidden className="text-white/30">·</span>
                   <span>{stats.devices} devices</span>
@@ -163,7 +168,7 @@ export default function SleekScreensaver({ stats }: { stats?: ScreensaverStats }
                 </div>
               </div>
             )}
-            <div className="mt-8 text-xs uppercase tracking-widest text-white/40">Tap to wake</div>
+            <div className="mt-4 text-[11px] uppercase tracking-widest text-white/40">Tap to wake</div>
           </div>
         </motion.div>
       )}
