@@ -4,33 +4,55 @@ import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 
 interface Cfg {
-  enabled: boolean;
   idleSec: number;
   images: string[];
 }
+
+const LS_KEY = "sleek-screensaver-on";
 
 // Idle screensaver: after `idleSec` with no input, fades in a fullscreen clock +
 // cross-fading admin-uploaded images. Any touch/mouse/key dismisses it. Sits
 // below the safety lock (z-[80] < LockedOverlay z-[90]).
 export default function SleekScreensaver() {
-  const [cfg, setCfg] = useState<Cfg>({ enabled: false, idleSec: 120, images: [] });
+  const [cfg, setCfg] = useState<Cfg>({ idleSec: 120, images: [] });
+  const [enabled, setEnabled] = useState(false); // per-device (localStorage)
   const [active, setActive] = useState(false);
   const [now, setNow] = useState<Date | null>(null);
   const [imgIdx, setImgIdx] = useState(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeRef = useRef(false);
 
-  // Load config once (and refresh every few minutes so admin changes propagate).
+  // Per-device enable flag: read from localStorage, and react to changes made on
+  // the Screensaver screen (custom event) or in another tab (storage event).
   useEffect(() => {
+    const read = () => {
+      try {
+        setEnabled(localStorage.getItem(LS_KEY) === "on");
+      } catch {
+        setEnabled(false);
+      }
+    };
+    read();
+    window.addEventListener("sleek-screensaver-change", read);
+    window.addEventListener("storage", read);
+    return () => {
+      window.removeEventListener("sleek-screensaver-change", read);
+      window.removeEventListener("storage", read);
+    };
+  }, []);
+
+  // Load the shared image set + idle delay while enabled (refresh periodically).
+  useEffect(() => {
+    if (!enabled) return;
     const load = () =>
       fetch("/api/screensaver")
         .then((r) => r.json())
-        .then((d) => setCfg({ enabled: !!d.enabled, idleSec: Number(d.idleSec) || 120, images: d.images ?? [] }))
+        .then((d) => setCfg({ idleSec: Number(d.idleSec) || 120, images: d.images ?? [] }))
         .catch(() => {});
     load();
     const t = setInterval(load, 300_000);
     return () => clearInterval(t);
-  }, []);
+  }, [enabled]);
 
   // Idle detection.
   useEffect(() => {
@@ -38,7 +60,7 @@ export default function SleekScreensaver() {
   }, [active]);
 
   useEffect(() => {
-    if (!cfg.enabled) {
+    if (!enabled) {
       setActive(false);
       return;
     }
@@ -57,7 +79,7 @@ export default function SleekScreensaver() {
       for (const e of events) window.removeEventListener(e, onActivity);
       if (timer.current) clearTimeout(timer.current);
     };
-  }, [cfg.enabled, cfg.idleSec]);
+  }, [enabled, cfg.idleSec]);
 
   // Tick the clock + rotate images while active.
   useEffect(() => {

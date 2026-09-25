@@ -20,6 +20,7 @@ import SleekRoutines from "./SleekRoutines";
 import SleekAutomations from "./SleekAutomations";
 import SleekSwitchGroups from "./SleekSwitchGroups";
 import SleekUsage from "./SleekUsage";
+import SleekScreensaverSettings from "./SleekScreensaverSettings";
 import SleekVoice from "./SleekVoice";
 import ProtectedAlert from "../ProtectedAlert";
 import LockedOverlay from "../LockedOverlay";
@@ -36,11 +37,12 @@ type Screen =
   | { k: "automations" }
   | { k: "switchGroups" }
   | { k: "usage" }
+  | { k: "screensaver" }
   | { k: "insights" }
   | { k: "voice" };
 
 const NAV_KEY = "sleek-nav";
-const SCREEN_KINDS = ["home", "favourites", "rooms", "room", "routines", "automations", "switchGroups", "usage", "insights", "voice"];
+const SCREEN_KINDS = ["home", "favourites", "rooms", "room", "routines", "automations", "switchGroups", "usage", "screensaver", "insights", "voice"];
 
 // Restore the last-viewed navigation stack (so a refresh lands where you were).
 function loadNav(): Screen[] {
@@ -181,6 +183,8 @@ export default function SleekApp({ role, username }: { role: "admin" | "user"; u
                 ? "Switch Groups"
                 : screen.k === "usage"
                 ? "Usage"
+                : screen.k === "screensaver"
+                ? "Screensaver"
                 : screen.k === "voice"
                   ? "Voice"
                   : "Insights";
@@ -333,6 +337,7 @@ export default function SleekApp({ role, username }: { role: "admin" | "user"; u
                 <SleekSwitchGroups rooms={rooms ?? []} isAdmin={isAdmin} editMode={editMode} />
               )}
               {screen.k === "usage" && <SleekUsage />}
+              {screen.k === "screensaver" && <SleekScreensaverSettings isAdmin={isAdmin} />}
               {screen.k === "voice" && <SleekVoice />}
               {screen.k === "insights" && <Insights isAdmin={isAdmin} />}
             </motion.div>

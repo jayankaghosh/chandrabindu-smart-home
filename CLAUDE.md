@@ -270,12 +270,20 @@ real time when the gateway is up.
   from the `change` stream — Boolean only, **forward-only**, needs the gateway
   running). `aggregateUsage(from,to)` reconstructs intervals; the state before the
   first in-window event is inferred as the opposite of that event's value.
-- **Screensaver** (`config.json#screensaver`, `/api/screensaver`,
-  `components/sleek/SleekScreensaver.tsx`): after `idleSec` of no input, a Sleek
-  idle overlay (`z-[80]`, below the lock) fades in a fullscreen clock + cross-fading
-  admin-uploaded images; any input dismisses. Images upload to `data/screensaver/`
-  via `POST /api/screensaver/images` (admin, multipart) and serve from
-  `GET /api/screensaver/images/[id]`. Config in Settings → Screensaver.
+- **Screensaver** (`config.json#screensaver` = `{idleSec, images}`, `/api/screensaver`,
+  overlay `components/sleek/SleekScreensaver.tsx`, screen `SleekScreensaverSettings.tsx`):
+  after `idleSec` of no input, a Sleek idle overlay (`z-[80]`, below the lock) fades
+  in a fullscreen clock + cross-fading images; any input dismisses. Managed from a
+  **home "Screensaver" section** (not Settings): the **enable toggle is per-device**
+  (`localStorage["sleek-screensaver-on"]`; the overlay listens for the
+  `sleek-screensaver-change` event); **admins** set the idle delay and manage the
+  shared images. Image add is **drag-and-drop of files, multiple, or whole folders
+  (recursed)** via `components/sleek/screensaverUpload.ts` (`collectImageFiles` uses
+  `webkitGetAsEntry`), and every image is **downscaled client-side** (canvas → ≤1920px
+  JPEG) before upload to dodge proxy body limits (the 413). Images upload to
+  `data/screensaver/` via `POST /api/screensaver/images` (admin, multipart) and serve
+  from `GET /api/screensaver/images/[id]`. GIFs upload as-is (bump nginx
+  `client_max_body_size` for large ones).
 - **Backup / restore** (`lib/backup.ts`, `/api/backup`, `/api/restore`, Settings →
   Backup & restore): `GET /api/backup` (admin) bundles the state JSON files
   **including secrets** (config, catalog, overrides, routines, automations,

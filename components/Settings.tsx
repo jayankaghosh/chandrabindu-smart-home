@@ -13,11 +13,9 @@ import {
   Sparkles,
   House,
   MapPin,
-  Monitor,
   DatabaseBackup,
   Upload,
   Download,
-  Trash2,
   Users,
   Lock,
   MonitorSmartphone,
@@ -67,12 +65,6 @@ export default function Settings({ isAdmin }: { isAdmin: boolean }) {
   const [windowSec, setWindowSec] = useState("20");
   const [savingLoop, setSavingLoop] = useState(false);
   const [loopMsg, setLoopMsg] = useState<string | null>(null);
-
-  const [ssEnabled, setSsEnabled] = useState(false);
-  const [ssIdle, setSsIdle] = useState("120");
-  const [ssImages, setSsImages] = useState<string[]>([]);
-  const [ssBusy, setSsBusy] = useState(false);
-  const [ssMsg, setSsMsg] = useState<string | null>(null);
 
   const [restoring, setRestoring] = useState(false);
   const [backupMsg, setBackupMsg] = useState<string | null>(null);
@@ -258,16 +250,6 @@ export default function Settings({ isAdmin }: { isAdmin: boolean }) {
     }
   }, []);
 
-  const loadScreensaver = useCallback(async () => {
-    const res = await fetch("/api/screensaver");
-    if (res.ok) {
-      const d = await res.json();
-      setSsEnabled(!!d.enabled);
-      setSsIdle(String(d.idleSec ?? 120));
-      setSsImages(d.images ?? []);
-    }
-  }, []);
-
   useEffect(() => {
     if (!isAdmin) return; // standard users only see the password section
     loadCreds();
@@ -275,59 +257,9 @@ export default function Settings({ isAdmin }: { isAdmin: boolean }) {
     loadHouse();
     loadLocation();
     loadLoopGuard();
-    loadScreensaver();
     loadAutoRestore();
     loadVoice();
-  }, [isAdmin, loadCreds, loadAi, loadHouse, loadLocation, loadLoopGuard, loadScreensaver, loadAutoRestore, loadVoice]);
-
-  async function saveScreensaver(patch: { enabled?: boolean; idleSec?: number }) {
-    setSsBusy(true);
-    setSsMsg(null);
-    try {
-      const res = await fetch("/api/screensaver", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(patch),
-      });
-      const d = await res.json();
-      if (!res.ok) throw new Error(d.error || "Failed");
-      setSsEnabled(!!d.enabled);
-      setSsIdle(String(d.idleSec));
-      setSsMsg("Saved.");
-    } catch (e) {
-      setSsMsg((e as Error).message);
-    } finally {
-      setSsBusy(false);
-    }
-  }
-
-  async function uploadScreensaverImage(file: File) {
-    setSsBusy(true);
-    setSsMsg(null);
-    try {
-      const form = new FormData();
-      form.append("file", file);
-      const res = await fetch("/api/screensaver/images", { method: "POST", body: form });
-      const d = await res.json();
-      if (!res.ok) throw new Error(d.error || "Upload failed");
-      setSsImages(d.images ?? []);
-    } catch (e) {
-      setSsMsg((e as Error).message);
-    } finally {
-      setSsBusy(false);
-    }
-  }
-
-  async function deleteScreensaverImage(id: string) {
-    setSsBusy(true);
-    try {
-      const res = await fetch(`/api/screensaver/images/${id}`, { method: "DELETE" });
-      const d = await res.json();
-      if (res.ok) setSsImages(d.images ?? []);
-    } finally {
-      setSsBusy(false);
-    }
-  }
+  }, [isAdmin, loadCreds, loadAi, loadHouse, loadLocation, loadLoopGuard, loadAutoRestore, loadVoice]);
 
   async function restoreBackupFile(file: File) {
     if (!window.confirm("Restore this backup? It overwrites current settings, devices, automations and secrets, and may sign everyone out.")) return;
@@ -651,63 +583,6 @@ export default function Settings({ isAdmin }: { isAdmin: boolean }) {
             </button>
           </form>
           {loopMsg && <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{loopMsg}</p>}
-        </Section>
-
-        {/* Screensaver */}
-        <Section icon={<Monitor size={16} />} title="Screensaver">
-          <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
-            After a period of no activity, show a fullscreen clock with your images (great for a wall tablet). Any tap wakes it.
-          </p>
-          <div className="mb-4 flex flex-wrap items-center gap-4">
-            <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
-              <input
-                type="checkbox"
-                checked={ssEnabled}
-                disabled={ssBusy}
-                onChange={(e) => saveScreensaver({ enabled: e.target.checked })}
-              />
-              Enabled
-            </label>
-            <label className="text-sm text-slate-600 dark:text-slate-300">
-              <span className="mb-1 mr-2">Idle (seconds)</span>
-              <input
-                value={ssIdle}
-                onChange={(e) => setSsIdle(e.target.value)}
-                onBlur={() => saveScreensaver({ idleSec: Number(ssIdle) })}
-                inputMode="numeric"
-                className="field inline-block w-24"
-              />
-            </label>
-          </div>
-          <div className="mb-3 flex flex-wrap gap-2">
-            {ssImages.map((id) => (
-              <div key={id} className="relative h-20 w-28 overflow-hidden rounded-xl border border-white/60 dark:border-white/10">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={`/api/screensaver/images/${id}`} alt="" className="h-full w-full object-cover" />
-                <button
-                  onClick={() => deleteScreensaverImage(id)}
-                  className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white"
-                  aria-label="Delete image"
-                >
-                  <Trash2 size={13} />
-                </button>
-              </div>
-            ))}
-          </div>
-          <label className="btn-ghost inline-flex cursor-pointer">
-            <Upload size={15} /> Add image
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) uploadScreensaverImage(f);
-                e.target.value = "";
-              }}
-            />
-          </label>
-          {ssMsg && <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{ssMsg}</p>}
         </Section>
 
         {/* Backup & Restore */}
