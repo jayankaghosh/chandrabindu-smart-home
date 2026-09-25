@@ -70,7 +70,6 @@ export default function SleekScreensaverSettings({ isAdmin }: { isAdmin: boolean
       try {
         const blob = await resizeImage(file);
         const form = new FormData();
-        // resized non-gif images become jpeg; keep a sensible filename
         form.append("file", blob, file.type === "image/gif" ? file.name : "image.jpg");
         const res = await fetch("/api/screensaver/images", { method: "POST", body: form });
         const d = await res.json();

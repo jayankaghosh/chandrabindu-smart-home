@@ -32,6 +32,8 @@ export function useHomeData() {
   const [statusByDevice, setStatusByDevice] = useState<Record<string, DeviceStatusState>>({});
   const [live, setLive] = useState(false);
   const [favourites, setFavourites] = useState<Set<string>>(new Set());
+  const [locked, setLocked] = useState(false);
+  const [lockInfo, setLockInfo] = useState<{ at: number; reason?: string; deviceId?: string; code?: string } | null>(null);
   const liveRef = useRef(live);
   liveRef.current = live;
 
@@ -48,6 +50,8 @@ export function useHomeData() {
       setRooms(data.rooms);
       setAiAvailable(Boolean(data.aiAvailable));
       if (data.houseName) setHouseName(data.houseName);
+      setLocked(Boolean(data.locked));
+      setLockInfo(data.lockInfo ?? null);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -119,6 +123,15 @@ export function useHomeData() {
       es.addEventListener("state", (e) => {
         const d = parse(e);
         if (d) applyState(d);
+      });
+      // Loop-protection lock/unlock — pushed by the gateway, so no polling needed.
+      es.addEventListener("lock", (e) => {
+        setLocked(true);
+        setLockInfo(parse(e) ?? { at: Date.now() });
+      });
+      es.addEventListener("unlock", () => {
+        setLocked(false);
+        setLockInfo(null);
       });
       es.onerror = () => {
         setLive(false);
@@ -256,6 +269,8 @@ export function useHomeData() {
     sendCommand,
     fetchDeviceStatus,
     protectedOff,
+    locked,
+    lockInfo,
     reload: load,
   };
 }

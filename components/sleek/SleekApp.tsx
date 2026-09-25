@@ -367,7 +367,7 @@ export default function SleekApp({ role, username }: { role: "admin" | "user"; u
       <SleekScreensaver
         stats={{ rooms: roomCount, devices: deviceCount, on: onCount, offline, protectedCount }}
       />
-      <LockedOverlay isAdmin={isAdmin} />
+      <LockedOverlay isAdmin={isAdmin} locked={data.locked} info={data.lockInfo} onUnlocked={data.reload} />
     </div>
   );
 }

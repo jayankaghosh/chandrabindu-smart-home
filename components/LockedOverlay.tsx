@@ -1,36 +1,59 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Lock, LockOpen, Loader2, ShieldAlert } from "lucide-react";
 
-interface LockState {
-  locked: boolean;
-  info?: { at: number; reason?: string; deviceId?: string; code?: string } | null;
+interface LockInfo {
+  at: number;
+  reason?: string;
+  deviceId?: string;
+  code?: string;
 }
 
 // The app-wide safety-lock overlay. Non-dismissible: when the loop guard trips,
-// every client shows "APP IS LOCKED". Admins get an Unlock button; everyone else
-// just sees the message. Polls /api/lock so it appears/clears on all devices.
-export default function LockedOverlay({ isAdmin }: { isAdmin: boolean }) {
-  const [state, setState] = useState<LockState>({ locked: false });
+// every client shows "APP IS LOCKED". Admins get an Unlock button; others just
+// see the message.
+//
+// Preferred: the parent passes `locked`/`info` (Sleek drives these from the SSE
+// stream via useHomeData — no polling). When they're omitted (e.g. Classic), it
+// falls back to a slow 20s poll of /api/lock so it still works.
+export default function LockedOverlay({
+  isAdmin,
+  locked: lockedProp,
+  info: infoProp,
+  onUnlocked,
+}: {
+  isAdmin: boolean;
+  locked?: boolean;
+  info?: LockInfo | null;
+  onUnlocked?: () => void;
+}) {
+  const controlled = lockedProp !== undefined;
+  const [polled, setPolled] = useState<{ locked: boolean; info?: LockInfo | null }>({ locked: false });
   const [unlocking, setUnlocking] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const poll = useCallback(async () => {
-    try {
-      const res = await fetch("/api/lock");
-      if (res.ok) setState(await res.json());
-    } catch {
-      /* keep last state on a transient error */
-    }
-  }, []);
-
   useEffect(() => {
+    if (controlled) return; // parent supplies state via SSE — don't poll
+    let stop = false;
+    const poll = async () => {
+      try {
+        const res = await fetch("/api/lock");
+        if (res.ok && !stop) setPolled(await res.json());
+      } catch {
+        /* keep last state */
+      }
+    };
     poll();
-    const t = setInterval(poll, 3000);
-    return () => clearInterval(t);
-  }, [poll]);
+    const t = setInterval(poll, 20000);
+    return () => {
+      stop = true;
+      clearInterval(t);
+    };
+  }, [controlled]);
+
+  const state = controlled ? { locked: !!lockedProp, info: infoProp } : polled;
 
   async function unlock() {
     setUnlocking(true);
@@ -43,7 +66,8 @@ export default function LockedOverlay({ isAdmin }: { isAdmin: boolean }) {
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || "Couldn't unlock");
-      setState(d);
+      if (controlled) onUnlocked?.();
+      else setPolled({ locked: !!d.locked, info: d.info });
     } catch (e) {
       setError((e as Error).message);
     } finally {
