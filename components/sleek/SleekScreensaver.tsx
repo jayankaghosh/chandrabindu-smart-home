@@ -8,12 +8,20 @@ interface Cfg {
   images: string[];
 }
 
+export interface ScreensaverStats {
+  rooms: number;
+  devices: number;
+  on: number;
+  offline: number;
+  protectedCount: number;
+}
+
 const LS_KEY = "sleek-screensaver-on";
 
 // Idle screensaver: after `idleSec` with no input, fades in a fullscreen clock +
 // cross-fading admin-uploaded images. Any touch/mouse/key dismisses it. Sits
 // below the safety lock (z-[80] < LockedOverlay z-[90]).
-export default function SleekScreensaver() {
+export default function SleekScreensaver({ stats }: { stats?: ScreensaverStats }) {
   const [cfg, setCfg] = useState<Cfg>({ idleSec: 120, images: [] });
   const [enabled, setEnabled] = useState(false); // per-device (localStorage)
   const [active, setActive] = useState(false);
@@ -132,7 +140,28 @@ export default function SleekScreensaver() {
           <div className="relative text-center text-white drop-shadow-lg">
             <div className="text-[16vw] font-bold leading-none tracking-tight tabular-nums sm:text-[12vw]">{time}</div>
             <div className="mt-2 text-xl font-medium text-white/80 sm:text-2xl">{date}</div>
-            <div className="mt-8 text-xs uppercase tracking-widest text-white/50">Tap to wake</div>
+            {stats && (
+              <div className="mt-6 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-sm font-light text-white/45">
+                <span>{stats.rooms} rooms</span>
+                <span aria-hidden className="text-white/20">·</span>
+                <span>{stats.devices} devices</span>
+                <span aria-hidden className="text-white/20">·</span>
+                <span>{stats.on} on</span>
+                {stats.protectedCount > 0 && (
+                  <>
+                    <span aria-hidden className="text-white/20">·</span>
+                    <span>{stats.protectedCount} protected</span>
+                  </>
+                )}
+                {stats.offline > 0 && (
+                  <>
+                    <span aria-hidden className="text-white/20">·</span>
+                    <span>{stats.offline} offline</span>
+                  </>
+                )}
+              </div>
+            )}
+            <div className="mt-8 text-xs uppercase tracking-widest text-white/40">Tap to wake</div>
           </div>
         </motion.div>
       )}

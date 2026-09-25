@@ -149,19 +149,27 @@ export default function SleekApp({ role, username }: { role: "admin" | "user"; u
     });
   };
 
-  // Home status strip figures
-  const { onCount, offline } = useMemo(() => {
+  // Home status strip figures (+ a few extras for the screensaver stats).
+  const { onCount, offline, roomCount, deviceCount, protectedCount } = useMemo(() => {
     let on = 0;
     let off = 0;
+    let devices = 0;
+    let prot = 0;
+    let roomsWithDevices = 0;
     for (const room of rooms ?? []) {
+      if (room.devices.length > 0) roomsWithDevices++;
       for (const d of room.devices) {
+        devices++;
         if (statusByDevice[d.id]?.reachable === false) off++;
         const vals = statusByDevice[d.id]?.values ?? {};
-        // Exclude protected controls (meant to stay on) from the "on" tally.
-        for (const f of d.functions) if (f.type === "Boolean" && !f.protected && vals[f.code] === true) on++;
+        for (const f of d.functions) {
+          if (f.protected) prot++;
+          // Exclude protected controls (meant to stay on) from the "on" tally.
+          if (f.type === "Boolean" && !f.protected && vals[f.code] === true) on++;
+        }
       }
     }
-    return { onCount: on, offline: off };
+    return { onCount: on, offline: off, roomCount: roomsWithDevices, deviceCount: devices, protectedCount: prot };
   }, [rooms, statusByDevice]);
 
   const currentRoom = screen.k === "room" ? (rooms ?? []).find((r) => r.id === screen.roomId) : undefined;
@@ -356,7 +364,9 @@ export default function SleekApp({ role, username }: { role: "admin" | "user"; u
       )}
 
       <SleekMasterControl onDone={data.reload} />
-      <SleekScreensaver />
+      <SleekScreensaver
+        stats={{ rooms: roomCount, devices: deviceCount, on: onCount, offline, protectedCount }}
+      />
       <LockedOverlay isAdmin={isAdmin} />
     </div>
   );
