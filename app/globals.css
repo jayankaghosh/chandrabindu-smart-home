@@ -16,6 +16,8 @@
 html,
 body {
   min-height: 100%;
+  /* Allow scrolling but disable pinch-zoom (standards-compliant path). */
+  touch-action: pan-x pan-y;
 }
 
 body {

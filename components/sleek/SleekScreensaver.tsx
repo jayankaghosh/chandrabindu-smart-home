@@ -141,24 +141,26 @@ export default function SleekScreensaver({ stats }: { stats?: ScreensaverStats }
             <div className="text-[16vw] font-bold leading-none tracking-tight tabular-nums sm:text-[12vw]">{time}</div>
             <div className="mt-2 text-xl font-medium text-white/80 sm:text-2xl">{date}</div>
             {stats && (
-              <div className="mt-6 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-sm font-light text-white/45">
-                <span>{stats.rooms} rooms</span>
-                <span aria-hidden className="text-white/20">·</span>
-                <span>{stats.devices} devices</span>
-                <span aria-hidden className="text-white/20">·</span>
-                <span>{stats.on} on</span>
-                {stats.protectedCount > 0 && (
-                  <>
-                    <span aria-hidden className="text-white/20">·</span>
-                    <span>{stats.protectedCount} protected</span>
-                  </>
-                )}
-                {stats.offline > 0 && (
-                  <>
-                    <span aria-hidden className="text-white/20">·</span>
-                    <span>{stats.offline} offline</span>
-                  </>
-                )}
+              <div className="mt-6 flex justify-center">
+                <div className="inline-flex flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-full bg-black/35 px-4 py-2 text-sm font-medium text-white/85 shadow-lg ring-1 ring-white/15 backdrop-blur-md">
+                  <span>{stats.rooms} rooms</span>
+                  <span aria-hidden className="text-white/30">·</span>
+                  <span>{stats.devices} devices</span>
+                  <span aria-hidden className="text-white/30">·</span>
+                  <span>{stats.on} on</span>
+                  {stats.protectedCount > 0 && (
+                    <>
+                      <span aria-hidden className="text-white/30">·</span>
+                      <span>{stats.protectedCount} protected</span>
+                    </>
+                  )}
+                  {stats.offline > 0 && (
+                    <>
+                      <span aria-hidden className="text-white/30">·</span>
+                      <span>{stats.offline} offline</span>
+                    </>
+                  )}
+                </div>
               </div>
             )}
             <div className="mt-8 text-xs uppercase tracking-widest text-white/40">Tap to wake</div>

@@ -18,6 +18,8 @@ export const viewport: Viewport = {
   themeColor: "#eceef3",
   width: "device-width",
   initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({
@@ -31,6 +33,13 @@ export default function RootLayout({
         <script
           dangerouslySetInnerHTML={{
             __html: `try{var t=localStorage.getItem('theme');if(t==='dark'||(!t&&window.matchMedia&&window.matchMedia('(prefers-color-scheme:dark)').matches)){document.documentElement.classList.add('dark')}}catch(e){}try{var u=localStorage.getItem('ui-theme');document.documentElement.dataset.ui=(u==='classic'?'classic':'sleek')}catch(e){}`,
+          }}
+        />
+        {/* Disable pinch-zoom / double-tap-zoom (iOS Safari ignores the viewport
+            user-scalable flag, so block the gesture + multi-touch events too). */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `document.addEventListener('gesturestart',function(e){e.preventDefault()},{passive:false});document.addEventListener('gesturechange',function(e){e.preventDefault()},{passive:false});document.addEventListener('touchmove',function(e){if(e.touches&&e.touches.length>1)e.preventDefault()},{passive:false});var _lt=0;document.addEventListener('touchend',function(e){var n=Date.now();if(n-_lt<=300)e.preventDefault();_lt=n},{passive:false});`,
           }}
         />
       </head>
