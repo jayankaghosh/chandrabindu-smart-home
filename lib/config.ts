@@ -70,6 +70,8 @@ interface AppConfig {
   /** Loop-guard thresholds: trip the lock if one switch toggles more than
    *  `maxToggles` times within `windowSec` seconds. Defaults 20 / 20. */
   loopGuard?: { maxToggles: number; windowSec: number };
+  /** Idle screensaver: after `idleSec` of no input, show a clock + these images. */
+  screensaver?: { enabled: boolean; idleSec: number; images: string[] };
 }
 
 /** Public (no secret) view of a user, for the settings UI. */
@@ -140,6 +142,7 @@ export function setPassword(password: string): void {
     locked: existing?.locked,
     lockInfo: existing?.lockInfo,
     loopGuard: existing?.loopGuard,
+    screensaver: existing?.screensaver,
   };
   write(config);
 }
@@ -428,6 +431,48 @@ export function setLoopGuard(maxToggles: number, windowSec: number): void {
     windowSec: Math.max(2, Math.min(3600, Math.round(windowSec))),
   };
   write({ ...config, loopGuard: clamped });
+}
+
+// ── Screensaver ──────────────────────────────────────────────────────────────
+
+export const DEFAULT_SCREENSAVER_IDLE_SEC = 120;
+
+/** Screensaver settings (with defaults). `images` are stored file ids. */
+export function getScreensaver(): { enabled: boolean; idleSec: number; images: string[] } {
+  const s = read()?.screensaver;
+  return {
+    enabled: s?.enabled === true,
+    idleSec: Number.isFinite(s?.idleSec) && (s?.idleSec ?? 0) >= 10 ? s!.idleSec : DEFAULT_SCREENSAVER_IDLE_SEC,
+    images: Array.isArray(s?.images) ? s!.images : [],
+  };
+}
+
+/** Update the enabled flag / idle seconds (superadmin). */
+export function setScreensaver(patch: { enabled?: boolean; idleSec?: number }): void {
+  const config = read();
+  if (!config) throw new Error("App is not onboarded yet");
+  const cur = getScreensaver();
+  write({
+    ...config,
+    screensaver: {
+      enabled: typeof patch.enabled === "boolean" ? patch.enabled : cur.enabled,
+      idleSec:
+        typeof patch.idleSec === "number" && Number.isFinite(patch.idleSec)
+          ? Math.max(10, Math.min(3600, Math.round(patch.idleSec)))
+          : cur.idleSec,
+      images: cur.images,
+    },
+  });
+}
+
+/** Add/remove a screensaver image id (superadmin). */
+export function updateScreensaverImages(mutate: (ids: string[]) => string[]): string[] {
+  const config = read();
+  if (!config) throw new Error("App is not onboarded yet");
+  const cur = getScreensaver();
+  const images = mutate([...cur.images]);
+  write({ ...config, screensaver: { enabled: cur.enabled, idleSec: cur.idleSec, images } });
+  return images;
 }
 
 /** Mark or unmark a single control as protected (admin). */

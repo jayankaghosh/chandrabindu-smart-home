@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Lock, LockOpen, Loader2, Bluetooth, Pencil, Check, X } from "lucide-react";
 import type { Room, UiDevice } from "@/lib/types";
@@ -39,6 +39,19 @@ export default function SleekRoomDetail({
   const [lockOpen, setLockOpen] = useState(false);
   const canEdit = isAdmin && editMode;
   const refresh = onChanged ?? (() => {});
+
+  // Which controls belong to a switch group (shown with a small link icon).
+  const [groupedKeys, setGroupedKeys] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    fetch("/api/switch-groups")
+      .then((r) => r.json())
+      .then((d) => {
+        const set = new Set<string>();
+        for (const g of d.groups ?? []) for (const m of g.members ?? []) set.add(favKey(m.deviceId, m.code));
+        setGroupedKeys(set);
+      })
+      .catch(() => {});
+  }, []);
 
   if (room.locked && !room.unlocked) {
     return <LockedRoom room={room} onUnlocked={onUnlocked} />;
@@ -108,6 +121,7 @@ export default function SleekRoomDetail({
                     isProtected={!!fn.protected}
                     isAdmin={isAdmin}
                     isFavourite={favourites.has(favKey(device.id, fn.code))}
+                    inGroup={groupedKeys.has(favKey(device.id, fn.code))}
                     onCommand={(v) => onCommand(device.id, fn.code, v)}
                     onToggleFavourite={() => onToggleFavourite(device.id, fn.code)}
                   />

@@ -19,9 +19,12 @@ import SleekFavourites from "./SleekFavourites";
 import SleekRoutines from "./SleekRoutines";
 import SleekAutomations from "./SleekAutomations";
 import SleekSwitchGroups from "./SleekSwitchGroups";
+import SleekUsage from "./SleekUsage";
 import SleekVoice from "./SleekVoice";
 import ProtectedAlert from "../ProtectedAlert";
 import LockedOverlay from "../LockedOverlay";
+import SleekMasterControl from "./SleekMasterControl";
+import SleekScreensaver from "./SleekScreensaver";
 import { screenTransition, screenVariants } from "./motion";
 
 type Screen =
@@ -32,11 +35,12 @@ type Screen =
   | { k: "routines" }
   | { k: "automations" }
   | { k: "switchGroups" }
+  | { k: "usage" }
   | { k: "insights" }
   | { k: "voice" };
 
 const NAV_KEY = "sleek-nav";
-const SCREEN_KINDS = ["home", "favourites", "rooms", "room", "routines", "automations", "switchGroups", "insights", "voice"];
+const SCREEN_KINDS = ["home", "favourites", "rooms", "room", "routines", "automations", "switchGroups", "usage", "insights", "voice"];
 
 // Restore the last-viewed navigation stack (so a refresh lands where you were).
 function loadNav(): Screen[] {
@@ -175,6 +179,8 @@ export default function SleekApp({ role, username }: { role: "admin" | "user"; u
                 ? "Automations"
                 : screen.k === "switchGroups"
                 ? "Switch Groups"
+                : screen.k === "usage"
+                ? "Usage"
                 : screen.k === "voice"
                   ? "Voice"
                   : "Insights";
@@ -326,6 +332,7 @@ export default function SleekApp({ role, username }: { role: "admin" | "user"; u
               {screen.k === "switchGroups" && (
                 <SleekSwitchGroups rooms={rooms ?? []} isAdmin={isAdmin} editMode={editMode} />
               )}
+              {screen.k === "usage" && <SleekUsage />}
               {screen.k === "voice" && <SleekVoice />}
               {screen.k === "insights" && <Insights isAdmin={isAdmin} />}
             </motion.div>
@@ -343,6 +350,8 @@ export default function SleekApp({ role, username }: { role: "admin" | "user"; u
         />
       )}
 
+      <SleekMasterControl onDone={data.reload} />
+      <SleekScreensaver />
       <LockedOverlay isAdmin={isAdmin} />
     </div>
   );

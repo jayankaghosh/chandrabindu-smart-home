@@ -126,6 +126,8 @@ to the browser), `app/api/gateway/route.ts` + `app/api/gateway/reinit/route.ts`
 | `automations.json` | `automations[]` (match all/any, conditions[] incl. time/sun triggers, actions[] incl. run-routine) | web UI, `lib/automations.ts` |
 | `switchGroups.json` | `groups[]` (name + member switches kept in sync) | web UI, `lib/switchGroups.ts` |
 | `suntimes.json` / `automationFired.json` | Cached daily sun times / per-trigger fired dates | `lib/sunTimes.ts`, `lib/automationScheduler.ts` |
+| `history/YYYY-MM-DD.jsonl` | Boolean on/off transitions `{deviceId,code,value,at}` for the Usage report | **gateway** `device-gateway/src/history.js` |
+| `screensaver/<id>.<ext>` | Admin-uploaded screensaver images | `/api/screensaver/images` |
 | `routines.json` | Routines (named lists of actions) | web UI, `lib/store.ts` |
 | `favourites/<username>.json` | Per-user starred controls (`{deviceId, code}[]`) | `lib/favourites.ts` |
 | `insights/<days>d_<date>.json` | Cached LLM insight reports | `lib/insights.ts` |
@@ -255,6 +257,33 @@ real time when the gateway is up.
   Unlock** (`PUT /api/lock {locked:false}`), which the gateway sees via its config
   watch and resets its counters. Getters/setters: `isAppLocked`/`setAppLocked`/
   `getLockInfo`, `getLoopGuard`/`setLoopGuard` in `lib/config.ts`.
+- **Master on/off** (`/api/master`, `components/sleek/SleekMasterControl.tsx`): a
+  persistent floating power button on **every** Sleek screen (rendered in
+  `SleekApp` outside the screen switch) → expands to **All On / All Off**, each
+  behind a confirm dialog. The endpoint enumerates every controllable Boolean via
+  `getModel`, **skips protected + Bluetooth + locked rooms**, and `setCommandLocal`s
+  each (master-off leaves protected on). Blocked by the app lock like any command.
+- **Usage report** (`/api/usage`, `lib/history.ts`, `components/sleek/SleekUsage.tsx`,
+  Sleek "Usage" section): per-control **on-duration / off-duration / toggle count**
+  over a range (1h/3h/12h/1d/3d/7d/custom), grouped by room. Data is the **gateway's**
+  history store (`data/history/*.jsonl`, written by `device-gateway/src/history.js`
+  from the `change` stream — Boolean only, **forward-only**, needs the gateway
+  running). `aggregateUsage(from,to)` reconstructs intervals; the state before the
+  first in-window event is inferred as the opposite of that event's value.
+- **Screensaver** (`config.json#screensaver`, `/api/screensaver`,
+  `components/sleek/SleekScreensaver.tsx`): after `idleSec` of no input, a Sleek
+  idle overlay (`z-[80]`, below the lock) fades in a fullscreen clock + cross-fading
+  admin-uploaded images; any input dismisses. Images upload to `data/screensaver/`
+  via `POST /api/screensaver/images` (admin, multipart) and serve from
+  `GET /api/screensaver/images/[id]`. Config in Settings → Screensaver.
+- **Backup / restore** (`lib/backup.ts`, `/api/backup`, `/api/restore`, Settings →
+  Backup & restore): `GET /api/backup` (admin) bundles the state JSON files
+  **including secrets** (config, catalog, overrides, routines, automations,
+  switchGroups, favourites/, chatbot/) into a `.cnbdu` JSON envelope downloaded as
+  `<timestamp>.cnbdu`. `POST /api/restore` (admin, multipart or raw body) validates
+  and writes them back (path-traversal-guarded), then `gatewayReinit()`. The file
+  holds password hashes + keys — treat as a credential; a restore can end sessions
+  if the session secret changes.
 - **Protected controls** (`config.json`, `/api/devices/[id]/protect`,
   `/api/protected`): controls that should stay ON (e.g. a modem). `/api/protected`
   (admin-only) reports live state. **Both themes** show the intrusive popup

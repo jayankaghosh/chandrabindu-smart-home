@@ -12,6 +12,7 @@ const { RuleEngine } = require("./rules");
 const { ProtectedGuard } = require("./protect");
 const { GroupSyncEngine } = require("./groups");
 const { LoopGuard } = require("./loopguard");
+const history = require("./history");
 
 const PORT = Number(process.env.GATEWAY_PORT || 4000);
 const HOST = process.env.GATEWAY_HOST || "127.0.0.1"; // localhost-only by default
@@ -36,9 +37,11 @@ groups.start();
 const loopGuard = new LoopGuard(gateway);
 loopGuard.start();
 
-// Log changes to stdout so `journalctl`/pm2 logs show live activity.
+// Log changes to stdout so `journalctl`/pm2 logs show live activity, and record
+// Boolean on/off transitions to the usage-history store.
 gateway.on("change", (e) => {
   console.log(`[change] ${e.deviceName} · ${e.name} (${e.code}) = ${JSON.stringify(e.value)} [${e.source}]`);
+  history.record(e);
 });
 
 const server = createServer(gateway, {

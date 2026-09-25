@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Star, ShieldAlert, X, Check } from "lucide-react";
+import { Star, ShieldAlert, X, Check, Link2 } from "lucide-react";
 import type { DeviceFunction } from "@/lib/types";
 import { controlKind, iconForControl, KIND_ON_GRADIENT, KIND_GLOW } from "@/lib/icons";
 import { enumLabel, isOn, valueLabel } from "./labels";
@@ -18,6 +18,7 @@ export default function SleekControlTile({
   isProtected,
   isAdmin,
   isFavourite,
+  inGroup,
   onCommand,
   onToggleFavourite,
   caption,
@@ -28,6 +29,7 @@ export default function SleekControlTile({
   isProtected?: boolean;
   isAdmin?: boolean;
   isFavourite?: boolean;
+  inGroup?: boolean;
   onCommand: (value: unknown) => void;
   onToggleFavourite?: () => void;
   caption?: string;
@@ -153,6 +155,17 @@ export default function SleekControlTile({
             aria-label="Protected control"
             className="pointer-events-none absolute inset-0 z-10 rounded-[26px] bg-slate-400/50 backdrop-grayscale dark:bg-slate-900/55"
           />
+        )}
+
+        {/* Switch-group indicator */}
+        {inGroup && (
+          <span
+            title="In a switch group"
+            aria-label="In a switch group"
+            className="pointer-events-none absolute -left-1.5 -top-1.5 z-20 flex h-6 w-6 items-center justify-center rounded-full bg-white shadow ring-1 ring-black/5 dark:bg-slate-800 dark:ring-white/10"
+          >
+            <Link2 size={12} className="text-indigo-500 dark:text-indigo-400" />
+          </span>
         )}
 
         {/* Favourite star */}
