@@ -2,9 +2,20 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Loader2, Check, X, Trash2, ArrowRight, Clock, Sunrise, Plus, Sparkles } from "lucide-react";
+import { Loader2, Check, X, Trash2, Pencil, ArrowRight, Clock, Sunrise, Plus, Sparkles } from "lucide-react";
 import type { Automation, AutomationAction, AutomationCondition, Room } from "@/lib/types";
-import { isRoutineAction } from "@/lib/types";
+import { isRoutineAction, isTriggerCondition } from "@/lib/types";
+
+/** Replace the item at `idx` (edit in place), or append when `idx` is null. */
+function replaceOrAppend<T>(arr: T[], idx: number | null, item: T): T[] {
+  return idx !== null ? arr.map((x, j) => (j === idx ? item : x)) : [...arr, item];
+}
+/** Fix up an "editing" index after the row at `removed` is deleted. */
+function adjustAfterDelete(idx: number | null, removed: number): number | null {
+  if (idx === null) return null;
+  if (idx === removed) return null;
+  return idx > removed ? idx - 1 : idx;
+}
 import { valueLabel } from "./labels";
 import SleekActionPicker from "./SleekActionPicker";
 
@@ -36,29 +47,37 @@ function describeCondition(
 export default function SleekAutomationBuilder({
   rooms,
   initial,
+  duplicate = false,
   onSaved,
   onCancel,
 }: {
   rooms: Room[];
   initial?: Automation;
+  /** Seed from `initial` but save as a NEW automation (not overwrite the original). */
+  duplicate?: boolean;
   onSaved: () => void;
   onCancel: () => void;
 }) {
-  const [name, setName] = useState(initial?.name ?? "");
+  const isEdit = !!initial && !duplicate;
+  const [name, setName] = useState(initial ? (duplicate ? `Copy of ${initial.name}` : initial.name) : "");
   const [match, setMatch] = useState<"all" | "any">(initial?.match ?? "all");
   const [conditions, setConditions] = useState<AutomationCondition[]>(initial?.conditions ?? []);
   const [actions, setActions] = useState<AutomationAction[]>(initial?.actions ?? []);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Which kind of condition the user is adding, plus the time/sun inputs.
+  // Which kind of condition the user is adding, plus the time/sun inputs, plus
+  // the index of the condition being edited in place (null = adding new).
   const [condKind, setCondKind] = useState<"device" | "time" | "sun">("device");
   const [timeVal, setTimeVal] = useState("18:00");
   const [sunEvent, setSunEvent] = useState<"sunrise" | "sunset">("sunset");
   const [sunOffset, setSunOffset] = useState("0");
+  const [editingCondIndex, setEditingCondIndex] = useState<number | null>(null);
 
-  // THEN action kind (device set vs run a routine), plus the routine list.
+  // THEN action kind (device set vs run a routine), the edited index, and the
+  // routine list.
   const [actKind, setActKind] = useState<"device" | "routine">("device");
+  const [editingActIndex, setEditingActIndex] = useState<number | null>(null);
   const [routines, setRoutines] = useState<{ id: string; name: string }[]>([]);
   const [pickRoutine, setPickRoutine] = useState("");
   useEffect(() => {
@@ -84,6 +103,52 @@ export default function SleekAutomationBuilder({
     };
   };
 
+  // Pull an existing condition/action back into its composer to edit in place.
+  function editCondition(i: number) {
+    const c = conditions[i];
+    if (c.type === "time") {
+      setCondKind("time");
+      setTimeVal(c.time);
+    } else if (c.type === "sun") {
+      setCondKind("sun");
+      setSunEvent(c.event);
+      setSunOffset(String(c.offsetMin ?? 0));
+    } else {
+      setCondKind("device"); // device picker seeds from `deviceCondInitial`
+    }
+    setEditingCondIndex(i);
+  }
+  function editAction(i: number) {
+    const a = actions[i];
+    if (isRoutineAction(a)) {
+      setActKind("routine");
+      setPickRoutine(a.routineId);
+    } else {
+      setActKind("device"); // device picker seeds from `deviceActInitial`
+    }
+    setEditingActIndex(i);
+  }
+  // Switching the composer kind abandons any in-place edit of the other kind.
+  function chooseCondKind(k: "device" | "time" | "sun") {
+    setCondKind(k);
+    setEditingCondIndex(null);
+  }
+  function chooseActKind(k: "device" | "routine") {
+    setActKind(k);
+    setEditingActIndex(null);
+  }
+
+  const editingCond = editingCondIndex !== null ? conditions[editingCondIndex] : undefined;
+  const deviceCondInitial =
+    editingCond && !isTriggerCondition(editingCond)
+      ? { deviceId: editingCond.deviceId, code: editingCond.code, value: editingCond.value }
+      : undefined;
+  const editingAct = editingActIndex !== null ? actions[editingActIndex] : undefined;
+  const deviceActInitial =
+    editingAct && !isRoutineAction(editingAct)
+      ? { deviceId: editingAct.deviceId, code: editingAct.code, value: editingAct.value }
+      : undefined;
+
   async function save() {
     setError(null);
     if (!name.trim()) return setError("Give the automation a name");
@@ -91,9 +156,9 @@ export default function SleekAutomationBuilder({
     if (actions.length === 0) return setError("Add at least one THEN action");
     setSaving(true);
     try {
-      const url = initial ? `/api/automations/${initial.id}` : "/api/automations";
+      const url = isEdit ? `/api/automations/${initial!.id}` : "/api/automations";
       const res = await fetch(url, {
-        method: initial ? "PUT" : "POST",
+        method: isEdit ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: name.trim(), match, conditions, actions }),
       });
@@ -117,7 +182,7 @@ export default function SleekAutomationBuilder({
       >
         <div className="mb-4 flex items-center justify-between gap-3">
           <h2 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-100">
-            {initial ? "Edit automation" : "New automation"}
+            {isEdit ? "Edit automation" : duplicate ? "Duplicate automation" : "New automation"}
           </h2>
           <button onClick={onCancel} aria-label="Close" className="icon-btn">
             <X size={16} />
@@ -150,16 +215,28 @@ export default function SleekAutomationBuilder({
             {conditions.map((c, i) => (
               <li
                 key={i}
-                className="flex items-center justify-between gap-2 rounded-2xl border border-white/60 bg-white/50 px-3.5 py-2.5 text-sm dark:border-white/10 dark:bg-white/[0.06]"
+                className={`flex items-center justify-between gap-2 rounded-2xl border px-3.5 py-2.5 text-sm ${
+                  editingCondIndex === i
+                    ? "border-brand-400 bg-brand-500/10 dark:border-brand-400/60"
+                    : "border-white/60 bg-white/50 dark:border-white/10 dark:bg-white/[0.06]"
+                }`}
               >
                 <span className="min-w-0 truncate text-slate-700 dark:text-slate-200">{describeCondition(c, byId)}</span>
-                <button
-                  onClick={() => setConditions((x) => x.filter((_, j) => j !== i))}
-                  aria-label="Remove"
-                  className="shrink-0 text-slate-400 hover:text-red-500"
-                >
-                  <Trash2 size={15} />
-                </button>
+                <div className="flex shrink-0 items-center gap-1">
+                  <button onClick={() => editCondition(i)} aria-label="Edit" className="text-slate-400 hover:text-brand-500">
+                    <Pencil size={15} />
+                  </button>
+                  <button
+                    onClick={() => {
+                      setConditions((x) => x.filter((_, j) => j !== i));
+                      setEditingCondIndex((cur) => adjustAfterDelete(cur, i));
+                    }}
+                    aria-label="Remove"
+                    className="text-slate-400 hover:text-red-500"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
@@ -174,7 +251,7 @@ export default function SleekAutomationBuilder({
           ] as const).map(([k, lbl]) => (
             <button
               key={k}
-              onClick={() => setCondKind(k)}
+              onClick={() => chooseCondKind(k)}
               className={`rounded-lg px-2.5 py-1 font-semibold ${condKind === k ? "bg-brand-500 text-white" : "text-slate-500 dark:text-slate-400"}`}
             >
               {lbl}
@@ -184,9 +261,14 @@ export default function SleekAutomationBuilder({
 
         {condKind === "device" && (
           <SleekActionPicker
+            key={`cond-${editingCondIndex ?? "new"}`}
             rooms={rooms}
-            addLabel="Add condition"
-            onAdd={(a) => setConditions((x) => [...x, { type: "device", deviceId: a.deviceId, code: a.code, value: a.value }])}
+            addLabel={editingCondIndex !== null ? "Update condition" : "Add condition"}
+            initial={deviceCondInitial}
+            onAdd={(a) => {
+              setConditions((x) => replaceOrAppend(x, editingCondIndex, { type: "device", deviceId: a.deviceId, code: a.code, value: a.value }));
+              setEditingCondIndex(null);
+            }}
           />
         )}
         {condKind === "time" && (
@@ -194,10 +276,14 @@ export default function SleekAutomationBuilder({
             <Clock size={16} className="text-slate-400" />
             <input type="time" value={timeVal} onChange={(e) => setTimeVal(e.target.value)} className="field !py-2 flex-1" />
             <button
-              onClick={() => timeVal && setConditions((x) => [...x, { type: "time", time: timeVal }])}
+              onClick={() => {
+                if (!timeVal) return;
+                setConditions((x) => replaceOrAppend(x, editingCondIndex, { type: "time", time: timeVal }));
+                setEditingCondIndex(null);
+              }}
               className="btn-primary !px-3"
             >
-              <Plus size={15} /> Add
+              <Plus size={15} /> {editingCondIndex !== null ? "Update" : "Add"}
             </button>
           </div>
         )}
@@ -221,12 +307,13 @@ export default function SleekAutomationBuilder({
               title="Offset in minutes (negative = before)"
             />
             <button
-              onClick={() =>
-                setConditions((x) => [...x, { type: "sun", event: sunEvent, offsetMin: Math.round(Number(sunOffset) || 0) }])
-              }
+              onClick={() => {
+                setConditions((x) => replaceOrAppend(x, editingCondIndex, { type: "sun", event: sunEvent, offsetMin: Math.round(Number(sunOffset) || 0) }));
+                setEditingCondIndex(null);
+              }}
               className="btn-primary !px-3"
             >
-              <Plus size={15} /> Add
+              <Plus size={15} /> {editingCondIndex !== null ? "Update" : "Add"}
             </button>
           </div>
         )}
@@ -245,7 +332,11 @@ export default function SleekAutomationBuilder({
               return (
                 <li
                   key={i}
-                  className="flex items-center justify-between gap-2 rounded-2xl border border-white/60 bg-white/50 px-3.5 py-2.5 text-sm dark:border-white/10 dark:bg-white/[0.06]"
+                  className={`flex items-center justify-between gap-2 rounded-2xl border px-3.5 py-2.5 text-sm ${
+                    editingActIndex === i
+                      ? "border-emerald-400 bg-emerald-500/10 dark:border-emerald-400/60"
+                      : "border-white/60 bg-white/50 dark:border-white/10 dark:bg-white/[0.06]"
+                  }`}
                 >
                   <span className="min-w-0 truncate text-slate-700 dark:text-slate-200">
                     {routine ? (
@@ -261,13 +352,21 @@ export default function SleekAutomationBuilder({
                       </>
                     )}
                   </span>
-                  <button
-                    onClick={() => setActions((x) => x.filter((_, j) => j !== i))}
-                    aria-label="Remove"
-                    className="shrink-0 text-slate-400 hover:text-red-500"
-                  >
-                    <Trash2 size={15} />
-                  </button>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <button onClick={() => editAction(i)} aria-label="Edit" className="text-slate-400 hover:text-emerald-500">
+                      <Pencil size={15} />
+                    </button>
+                    <button
+                      onClick={() => {
+                        setActions((x) => x.filter((_, j) => j !== i));
+                        setEditingActIndex((cur) => adjustAfterDelete(cur, i));
+                      }}
+                      aria-label="Remove"
+                      className="text-slate-400 hover:text-red-500"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
                 </li>
               );
             })}
@@ -282,7 +381,7 @@ export default function SleekAutomationBuilder({
           ] as const).map(([k, lbl]) => (
             <button
               key={k}
-              onClick={() => setActKind(k)}
+              onClick={() => chooseActKind(k)}
               className={`rounded-lg px-2.5 py-1 font-semibold ${actKind === k ? "bg-emerald-500 text-white" : "text-slate-500 dark:text-slate-400"}`}
             >
               {lbl}
@@ -292,9 +391,14 @@ export default function SleekAutomationBuilder({
 
         {actKind === "device" ? (
           <SleekActionPicker
+            key={`act-${editingActIndex ?? "new"}`}
             rooms={rooms}
-            addLabel="Add action"
-            onAdd={(a) => setActions((x) => [...x, { type: "device", deviceId: a.deviceId, code: a.code, value: a.value }])}
+            addLabel={editingActIndex !== null ? "Update action" : "Add action"}
+            initial={deviceActInitial}
+            onAdd={(a) => {
+              setActions((x) => replaceOrAppend(x, editingActIndex, { type: "device", deviceId: a.deviceId, code: a.code, value: a.value }));
+              setEditingActIndex(null);
+            }}
           />
         ) : routines.length === 0 ? (
           <p className="text-sm text-slate-500 dark:text-slate-400">No routines yet — create one under Routines first.</p>
@@ -309,10 +413,14 @@ export default function SleekAutomationBuilder({
               ))}
             </select>
             <button
-              onClick={() => pickRoutine && setActions((x) => [...x, { type: "routine", routineId: pickRoutine }])}
+              onClick={() => {
+                if (!pickRoutine) return;
+                setActions((x) => replaceOrAppend(x, editingActIndex, { type: "routine", routineId: pickRoutine }));
+                setEditingActIndex(null);
+              }}
               className="btn-primary !px-3"
             >
-              <Plus size={15} /> Add
+              <Plus size={15} /> {editingActIndex !== null ? "Update" : "Add"}
             </button>
           </div>
         )}
@@ -326,7 +434,7 @@ export default function SleekAutomationBuilder({
           </button>
           <button onClick={save} disabled={saving} className="btn-primary">
             {saving ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
-            {initial ? "Save changes" : "Save automation"}
+            {isEdit ? "Save changes" : "Save automation"}
           </button>
         </div>
       </motion.div>

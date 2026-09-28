@@ -5,56 +5,71 @@ import { Plus, Clock } from "lucide-react";
 import type { DeviceFunction, Room } from "@/lib/types";
 import { CONTROLLABLE, enumLabel } from "./labels";
 
+// A control that a routine / automation / group may act on: controllable type,
+// but never a protected or super-protected switch (those must never be actuated
+// by these features), and never a Bluetooth device (can't be reached).
+function isActionable(f: DeviceFunction): boolean {
+  return CONTROLLABLE.includes(f.type) && !f.protected && !f.superProtected;
+}
+
 // One composed action/condition: pick device (grouped by room) → control →
 // value. Emits { deviceId, code, value, delayMs? } via onAdd. Shared big-button
 // picker used by the Sleek routine and automation builders. `showDelay` adds a
-// per-action delay field (routines only); `addLabel` names the button.
+// per-action delay field (routines only); `addLabel` names the button. When
+// `initial` is given the picker opens seeded with that action (used for editing
+// an existing row in place); remount it via a `key` to re-seed.
 export default function SleekActionPicker({
   rooms,
   onAdd,
   addLabel = "Add action",
   showDelay = false,
+  initial,
 }: {
   rooms: Room[];
   onAdd: (a: { deviceId: string; code: string; value: unknown; delayMs?: number }) => void;
   addLabel?: string;
   showDelay?: boolean;
+  initial?: { deviceId: string; code: string; value: unknown; delayMs?: number };
 }) {
-  // Only rooms/devices with a controllable (non-BT) function.
+  // Only rooms/devices with an actionable (non-BT, non-protected) function.
   const usableRooms = useMemo(
     () =>
       rooms
         .map((r) => ({
           ...r,
-          devices: r.devices.filter((d) => !d.bluetooth && d.functions.some((f) => CONTROLLABLE.includes(f.type))),
+          devices: r.devices.filter((d) => !d.bluetooth && d.functions.some(isActionable)),
         }))
         .filter((r) => r.devices.length > 0),
     [rooms],
   );
   const roomById = useMemo(() => new Map(usableRooms.map((r) => [r.id, r])), [usableRooms]);
 
-  const [roomId, setRoomId] = useState(usableRooms[0]?.id ?? "");
+  // Seed from `initial` when editing, else start at the first available option.
+  const initialRoomId = initial
+    ? usableRooms.find((r) => r.devices.some((d) => d.id === initial.deviceId))?.id ?? usableRooms[0]?.id ?? ""
+    : usableRooms[0]?.id ?? "";
+  const [roomId, setRoomId] = useState(initialRoomId);
   const devicesInRoom = roomById.get(roomId)?.devices ?? [];
-  const [devId, setDevId] = useState(devicesInRoom[0]?.id ?? "");
+  const [devId, setDevId] = useState(initial?.deviceId ?? devicesInRoom[0]?.id ?? "");
   const device = devicesInRoom.find((d) => d.id === devId) ?? devicesInRoom[0];
-  const fns = (device?.functions ?? []).filter((f) => CONTROLLABLE.includes(f.type));
-  const [code, setCode] = useState(fns[0]?.code ?? "");
+  const fns = (device?.functions ?? []).filter(isActionable);
+  const [code, setCode] = useState(initial?.code ?? fns[0]?.code ?? "");
   const fn = fns.find((f) => f.code === code) ?? fns[0];
-  const [value, setValue] = useState<unknown>(defaultValue(fn));
-  const [delayMs, setDelayMs] = useState(0);
+  const [value, setValue] = useState<unknown>(initial ? initial.value : defaultValue(fn));
+  const [delayMs, setDelayMs] = useState(initial?.delayMs ?? 0);
 
   function onRoom(id: string) {
     setRoomId(id);
     const nd = (roomById.get(id)?.devices ?? [])[0];
     setDevId(nd?.id ?? "");
-    const nf = (nd?.functions ?? []).filter((f) => CONTROLLABLE.includes(f.type));
+    const nf = (nd?.functions ?? []).filter(isActionable);
     setCode(nf[0]?.code ?? "");
     setValue(defaultValue(nf[0]));
   }
   function onDevice(id: string) {
     setDevId(id);
     const nd = devicesInRoom.find((d) => d.id === id);
-    const nf = (nd?.functions ?? []).filter((f) => CONTROLLABLE.includes(f.type));
+    const nf = (nd?.functions ?? []).filter(isActionable);
     setCode(nf[0]?.code ?? "");
     setValue(defaultValue(nf[0]));
   }

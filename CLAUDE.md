@@ -416,7 +416,18 @@ Two full UIs, per-device selectable in Settings (Appearance). Persisted in
     (IF match all/any → THEN); keeps the existing view + enable/disable.
   - **Cloud Sync** button in the home header (`POST /api/sync`).
   - **`SleekActionPicker`** is the shared big-button device→control→value picker
-    reused by both builders.
+    reused by both builders (and the switch-group member picker mirrors it). It
+    **excludes protected and super-protected controls** (`f.protected ||
+    f.superProtected`), so routines / automations / groups can never act on them
+    (defense on top of the engine-side skips). Pass `initial` (+ a remount `key`)
+    to open it seeded for editing a row in place.
+  - **Duplicate / edit-in-place** (all three builders): each routine / automation
+    / switch-group card has a **Duplicate** button (opens the builder pre-filled,
+    saved as a NEW record via a `duplicate` flag, name "Copy of …"; create-vs-edit
+    keys off `!!initial && !duplicate`, not `initial` truthiness). Inside a builder,
+    every condition / action / member row has an **Edit** pencil that pulls it back
+    into its composer (button becomes "Update") and **replaces it in place**
+    (position preserved); switching the composer kind cancels the in-place edit.
   - ⚠️ **The two builders are MODAL overlays, not nav-stack screens.** A nav-stack
     builder deadlocked `AnimatePresence mode="wait"` (exit never completed). The
     modal pattern (like the sheets) avoids the screen transition entirely — keep

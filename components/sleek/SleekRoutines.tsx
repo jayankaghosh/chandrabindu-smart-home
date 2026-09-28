@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Play, Loader2, Check, Wand2, Plus, Pencil, Trash2 } from "lucide-react";
+import { Play, Loader2, Check, Wand2, Plus, Pencil, Trash2, Copy } from "lucide-react";
 import type { EnrichedRoutine, Room } from "@/lib/types";
 import { gridContainer, gridItem } from "./motion";
 import SleekRoutineBuilder from "./SleekRoutineBuilder";
@@ -19,8 +19,10 @@ export default function SleekRoutines({
   const [routines, setRoutines] = useState<EnrichedRoutine[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [done, setDone] = useState<Record<string, string>>({});
-  // Builder modal: "new" for a fresh routine, a routine object to edit, or null.
-  const [builder, setBuilder] = useState<"new" | EnrichedRoutine | null>(null);
+  // Builder modal: new, edit an existing routine, or duplicate one into a new.
+  const [builder, setBuilder] = useState<
+    { mode: "new" } | { mode: "edit" | "duplicate"; item: EnrichedRoutine } | null
+  >(null);
   const canEdit = isAdmin && editMode;
 
   const load = useCallback(() => {
@@ -69,7 +71,7 @@ export default function SleekRoutines({
   return (
     <div className="space-y-4">
       {canEdit && (
-        <button onClick={() => setBuilder("new")} className="btn-primary">
+        <button onClick={() => setBuilder({ mode: "new" })} className="btn-primary">
           <Plus size={16} />
           New routine
         </button>
@@ -99,8 +101,11 @@ export default function SleekRoutines({
                 </motion.button>
                 {canEdit && (
                   <>
-                    <button onClick={() => setBuilder(r)} aria-label={`Edit ${r.name}`} className="icon-btn h-12 w-12">
+                    <button onClick={() => setBuilder({ mode: "edit", item: r })} aria-label={`Edit ${r.name}`} className="icon-btn h-12 w-12">
                       <Pencil size={16} />
+                    </button>
+                    <button onClick={() => setBuilder({ mode: "duplicate", item: r })} aria-label={`Duplicate ${r.name}`} title="Duplicate" className="icon-btn h-12 w-12">
+                      <Copy size={16} />
                     </button>
                     <button onClick={() => del(r)} aria-label={`Delete ${r.name}`} className="icon-btn h-12 w-12 text-red-500">
                       <Trash2 size={16} />
@@ -116,7 +121,8 @@ export default function SleekRoutines({
       {builder && (
         <SleekRoutineBuilder
           rooms={rooms}
-          initial={builder === "new" ? undefined : builder}
+          initial={builder.mode === "new" ? undefined : builder.item}
+          duplicate={builder.mode === "duplicate"}
           onCancel={() => setBuilder(null)}
           onSaved={() => {
             setBuilder(null);

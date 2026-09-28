@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Loader2, Check, X, Trash2 } from "lucide-react";
+import { Loader2, Check, X, Trash2, Pencil } from "lucide-react";
 import type { EnrichedRoutine, Room } from "@/lib/types";
 import { valueLabel } from "./labels";
 import SleekActionPicker from "./SleekActionPicker";
@@ -21,18 +21,24 @@ interface Draft {
 export default function SleekRoutineBuilder({
   rooms,
   initial,
+  duplicate = false,
   onSaved,
   onCancel,
 }: {
   rooms: Room[];
   initial?: EnrichedRoutine;
+  /** Seed from `initial` but save as a NEW routine (not overwrite the original). */
+  duplicate?: boolean;
   onSaved: () => void;
   onCancel: () => void;
 }) {
-  const [name, setName] = useState(initial?.name ?? "");
+  const isEdit = !!initial && !duplicate;
+  const [name, setName] = useState(initial ? (duplicate ? `Copy of ${initial.name}` : initial.name) : "");
   const [actions, setActions] = useState<Draft[]>(
     initial?.actions.map((a) => ({ deviceId: a.deviceId, code: a.code, value: a.value, delayMs: a.delayMs ?? 0 })) ?? [],
   );
+  // Index of the action being edited in place, or null when adding a new one.
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -53,9 +59,9 @@ export default function SleekRoutineBuilder({
     if (actions.length === 0) return setError("Add at least one action");
     setSaving(true);
     try {
-      const url = initial ? `/api/routines/${initial.id}` : "/api/routines";
+      const url = isEdit ? `/api/routines/${initial!.id}` : "/api/routines";
       const res = await fetch(url, {
-        method: initial ? "PUT" : "POST",
+        method: isEdit ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: name.trim(), actions }),
       });
@@ -78,7 +84,7 @@ export default function SleekRoutineBuilder({
       >
         <div className="mb-4 flex items-center justify-between gap-3">
           <h2 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-100">
-            {initial ? "Edit routine" : "New routine"}
+            {isEdit ? "Edit routine" : duplicate ? "Duplicate routine" : "New routine"}
           </h2>
           <button onClick={onCancel} aria-label="Close" className="icon-btn">
             <X size={16} />
@@ -97,7 +103,11 @@ export default function SleekRoutineBuilder({
             return (
               <li
                 key={i}
-                className="flex items-center justify-between gap-2 rounded-2xl border border-white/60 bg-white/50 px-3.5 py-3 text-sm dark:border-white/10 dark:bg-white/[0.06]"
+                className={`flex items-center justify-between gap-2 rounded-2xl border px-3.5 py-3 text-sm ${
+                  editingIndex === i
+                    ? "border-brand-400 bg-brand-500/10 dark:border-brand-400/60"
+                    : "border-white/60 bg-white/50 dark:border-white/10 dark:bg-white/[0.06]"
+                }`}
               >
                 <span className="min-w-0 truncate text-slate-700 dark:text-slate-200">
                   <span className="text-slate-400 dark:text-slate-500">{l.deviceName}</span> {l.controlName}{" "}
@@ -105,21 +115,52 @@ export default function SleekRoutineBuilder({
                   <span className="font-semibold text-slate-900 dark:text-slate-100">{l.label}</span>
                   {a.delayMs ? <span className="ml-1 text-xs text-slate-400">· after {a.delayMs}ms</span> : null}
                 </span>
-                <button
-                  onClick={() => setActions((x) => x.filter((_, j) => j !== i))}
-                  aria-label="Remove action"
-                  className="shrink-0 text-slate-400 hover:text-red-500"
-                >
-                  <Trash2 size={15} />
-                </button>
+                <div className="flex shrink-0 items-center gap-1">
+                  <button
+                    onClick={() => setEditingIndex(i)}
+                    aria-label="Edit action"
+                    className="text-slate-400 hover:text-brand-500"
+                  >
+                    <Pencil size={15} />
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActions((x) => x.filter((_, j) => j !== i));
+                      setEditingIndex((cur) => (cur === null ? null : cur === i ? null : cur > i ? cur - 1 : cur));
+                    }}
+                    aria-label="Remove action"
+                    className="text-slate-400 hover:text-red-500"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
               </li>
             );
           })}
         </ul>
       )}
 
-      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Add an action</p>
-      <SleekActionPicker rooms={rooms} showDelay onAdd={(a) => setActions((x) => [...x, a])} />
+      <div className="mb-2 flex items-center justify-between">
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+          {editingIndex !== null ? `Editing action ${editingIndex + 1}` : "Add an action"}
+        </p>
+        {editingIndex !== null && (
+          <button onClick={() => setEditingIndex(null)} className="text-xs font-medium text-slate-500 hover:underline dark:text-slate-400">
+            Cancel edit
+          </button>
+        )}
+      </div>
+      <SleekActionPicker
+        key={editingIndex ?? "new"}
+        rooms={rooms}
+        showDelay
+        initial={editingIndex !== null ? actions[editingIndex] : undefined}
+        addLabel={editingIndex !== null ? "Update action" : "Add action"}
+        onAdd={(a) => {
+          setActions((x) => (editingIndex !== null ? x.map((y, j) => (j === editingIndex ? a : y)) : [...x, a]));
+          setEditingIndex(null);
+        }}
+      />
 
       {error && <p className="mt-4 text-sm text-red-500">{error}</p>}
 
@@ -130,7 +171,7 @@ export default function SleekRoutineBuilder({
         </button>
         <button onClick={save} disabled={saving} className="btn-primary">
           {saving ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
-          {initial ? "Save changes" : "Save routine"}
+          {isEdit ? "Save changes" : "Save routine"}
         </button>
         </div>
       </motion.div>

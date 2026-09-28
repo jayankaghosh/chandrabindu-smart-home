@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Link2, Plus, Pencil, Trash2, Loader2, Check, X } from "lucide-react";
+import { Link2, Plus, Pencil, Trash2, Loader2, Check, X, Copy } from "lucide-react";
 import type { Room, SwitchGroup, SwitchGroupMember } from "@/lib/types";
 import { CONTROLLABLE } from "./labels";
 
@@ -18,7 +18,9 @@ export default function SleekSwitchGroups({
   editMode: boolean;
 }) {
   const [groups, setGroups] = useState<SwitchGroup[] | null>(null);
-  const [builder, setBuilder] = useState<{ mode: "new" } | { mode: "edit"; group: SwitchGroup } | null>(null);
+  const [builder, setBuilder] = useState<
+    { mode: "new" } | { mode: "edit" | "duplicate"; group: SwitchGroup } | null
+  >(null);
   const [busy, setBusy] = useState<string | null>(null);
   const canEdit = isAdmin && editMode;
 
@@ -78,6 +80,9 @@ export default function SleekSwitchGroups({
                   <button onClick={() => setBuilder({ mode: "edit", group: g })} aria-label="Edit" className="icon-btn h-8 w-8">
                     <Pencil size={14} />
                   </button>
+                  <button onClick={() => setBuilder({ mode: "duplicate", group: g })} aria-label="Duplicate" title="Duplicate" className="icon-btn h-8 w-8">
+                    <Copy size={14} />
+                  </button>
                   <button onClick={() => del(g.id)} disabled={busy === g.id} aria-label="Delete" className="icon-btn h-8 w-8">
                     {busy === g.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
                   </button>
@@ -101,7 +106,8 @@ export default function SleekSwitchGroups({
       {builder && (
         <GroupBuilder
           rooms={rooms}
-          initial={builder.mode === "edit" ? builder.group : undefined}
+          initial={builder.mode === "new" ? undefined : builder.group}
+          duplicate={builder.mode === "duplicate"}
           onSaved={() => {
             setBuilder(null);
             load();
@@ -116,26 +122,35 @@ export default function SleekSwitchGroups({
 function GroupBuilder({
   rooms,
   initial,
+  duplicate = false,
   onSaved,
   onCancel,
 }: {
   rooms: Room[];
   initial?: SwitchGroup;
+  /** Seed from `initial` but save as a NEW group (not overwrite the original). */
+  duplicate?: boolean;
   onSaved: () => void;
   onCancel: () => void;
 }) {
-  const [name, setName] = useState(initial?.name ?? "");
+  const isEdit = !!initial && !duplicate;
+  const [name, setName] = useState(initial ? (duplicate ? `Copy of ${initial.name}` : initial.name) : "");
   const [members, setMembers] = useState<SwitchGroupMember[]>(initial?.members ?? []);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // A Boolean control a group may sync: not protected, not super-protected.
+  const groupable = (f: Room["devices"][number]["functions"][number]) =>
+    f.type === "Boolean" && CONTROLLABLE.includes(f.type) && !f.protected && !f.superProtected;
 
   // Cascading picker: room → device → Boolean control.
   const [roomId, setRoomId] = useState(rooms[0]?.id ?? "");
   const room = rooms.find((r) => r.id === roomId);
-  const boolDevices = (room?.devices ?? []).filter((d) => !d.bluetooth && d.functions.some((f) => f.type === "Boolean"));
+  const boolDevices = (room?.devices ?? []).filter((d) => !d.bluetooth && d.functions.some(groupable));
   const [deviceId, setDeviceId] = useState("");
   const device = boolDevices.find((d) => d.id === deviceId) ?? boolDevices[0];
-  const boolFns = (device?.functions ?? []).filter((f) => f.type === "Boolean" && CONTROLLABLE.includes(f.type));
+  const boolFns = (device?.functions ?? []).filter(groupable);
   const [code, setCode] = useState("");
   const chosen = boolFns.find((f) => f.code === code) ?? boolFns[0];
 
@@ -149,8 +164,22 @@ function GroupBuilder({
   function addMember() {
     if (!device || !chosen) return;
     const m = { deviceId: device.id, code: chosen.code };
-    if (members.some((x) => x.deviceId === m.deviceId && x.code === m.code)) return;
-    setMembers((x) => [...x, m]);
+    const dupe = members.some((x, j) => j !== editingIndex && x.deviceId === m.deviceId && x.code === m.code);
+    if (dupe) {
+      setEditingIndex(null);
+      return;
+    }
+    setMembers((x) => (editingIndex !== null ? x.map((y, j) => (j === editingIndex ? m : y)) : [...x, m]));
+    setEditingIndex(null);
+  }
+
+  function editMember(i: number) {
+    const m = members[i];
+    const r = rooms.find((rm) => rm.devices.some((d) => d.id === m.deviceId));
+    if (r) setRoomId(r.id);
+    setDeviceId(m.deviceId);
+    setCode(m.code);
+    setEditingIndex(i);
   }
 
   async function save() {
@@ -159,9 +188,9 @@ function GroupBuilder({
     if (members.length < 2) return setError("Add at least two switches");
     setSaving(true);
     try {
-      const url = initial ? `/api/switch-groups/${initial.id}` : "/api/switch-groups";
+      const url = isEdit ? `/api/switch-groups/${initial!.id}` : "/api/switch-groups";
       const res = await fetch(url, {
-        method: initial ? "PUT" : "POST",
+        method: isEdit ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: name.trim(), members }),
       });
@@ -183,7 +212,7 @@ function GroupBuilder({
         className="card max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-b-none rounded-t-3xl p-6 sm:rounded-3xl"
       >
         <div className="mb-4 flex items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{initial ? "Edit group" : "New group"}</h2>
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{isEdit ? "Edit group" : duplicate ? "Duplicate group" : "New group"}</h2>
           <button onClick={onCancel} aria-label="Close" className="icon-btn">
             <X size={16} />
           </button>
@@ -199,16 +228,28 @@ function GroupBuilder({
             {members.map((m, i) => (
               <li
                 key={i}
-                className="flex items-center justify-between gap-2 rounded-2xl border border-white/60 bg-white/50 px-3.5 py-2.5 text-sm dark:border-white/10 dark:bg-white/[0.06]"
+                className={`flex items-center justify-between gap-2 rounded-2xl border px-3.5 py-2.5 text-sm ${
+                  editingIndex === i
+                    ? "border-brand-400 bg-brand-500/10 dark:border-brand-400/60"
+                    : "border-white/60 bg-white/50 dark:border-white/10 dark:bg-white/[0.06]"
+                }`}
               >
                 <span className="truncate text-slate-700 dark:text-slate-200">{label(m)}</span>
-                <button
-                  onClick={() => setMembers((x) => x.filter((_, j) => j !== i))}
-                  aria-label="Remove"
-                  className="shrink-0 text-slate-400 hover:text-red-500"
-                >
-                  <Trash2 size={15} />
-                </button>
+                <div className="flex shrink-0 items-center gap-1">
+                  <button onClick={() => editMember(i)} aria-label="Edit" className="text-slate-400 hover:text-brand-500">
+                    <Pencil size={15} />
+                  </button>
+                  <button
+                    onClick={() => {
+                      setMembers((x) => x.filter((_, j) => j !== i));
+                      setEditingIndex((cur) => (cur === null ? null : cur === i ? null : cur > i ? cur - 1 : cur));
+                    }}
+                    aria-label="Remove"
+                    className="text-slate-400 hover:text-red-500"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
@@ -231,9 +272,14 @@ function GroupBuilder({
             ))}
           </select>
           <button onClick={addMember} disabled={!chosen} className="btn-primary !px-3">
-            <Plus size={15} /> Add
+            <Plus size={15} /> {editingIndex !== null ? "Update" : "Add"}
           </button>
         </div>
+        {editingIndex !== null && (
+          <button onClick={() => setEditingIndex(null)} className="mt-2 text-xs font-medium text-slate-500 hover:underline dark:text-slate-400">
+            Cancel edit
+          </button>
+        )}
 
         {error && <p className="mt-4 text-sm text-red-500">{error}</p>}
 
@@ -243,7 +289,7 @@ function GroupBuilder({
           </button>
           <button onClick={save} disabled={saving} className="btn-primary">
             {saving ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
-            {initial ? "Save changes" : "Save group"}
+            {isEdit ? "Save changes" : "Save group"}
           </button>
         </div>
       </motion.div>

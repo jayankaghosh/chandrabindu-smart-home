@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Zap, Loader2, Power, ArrowRight, Plus, Pencil, Trash2 } from "lucide-react";
+import { Zap, Loader2, Power, ArrowRight, Plus, Pencil, Trash2, Copy } from "lucide-react";
 import type { Automation, Room } from "@/lib/types";
 import { gridContainer, gridItem } from "./motion";
 import SleekAutomationBuilder from "./SleekAutomationBuilder";
@@ -19,7 +19,9 @@ export default function SleekAutomations({
 }) {
   const [items, setItems] = useState<Automation[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const [builder, setBuilder] = useState<"new" | Automation | null>(null);
+  const [builder, setBuilder] = useState<
+    { mode: "new" } | { mode: "edit" | "duplicate"; item: Automation } | null
+  >(null);
   const canEdit = isAdmin && editMode;
 
   const load = useCallback(async () => {
@@ -62,7 +64,7 @@ export default function SleekAutomations({
   return (
     <div className="space-y-4">
       {canEdit && (
-        <button onClick={() => setBuilder("new")} className="btn-primary">
+        <button onClick={() => setBuilder({ mode: "new" })} className="btn-primary">
           <Plus size={16} />
           New automation
         </button>
@@ -101,9 +103,12 @@ export default function SleekAutomations({
               </div>
               {canEdit && (
                 <div className="flex items-center gap-2">
-                  <button onClick={() => setBuilder(a)} className="btn-ghost flex-1 justify-center">
+                  <button onClick={() => setBuilder({ mode: "edit", item: a })} className="btn-ghost flex-1 justify-center">
                     <Pencil size={15} />
                     Edit
+                  </button>
+                  <button onClick={() => setBuilder({ mode: "duplicate", item: a })} aria-label={`Duplicate ${a.name}`} title="Duplicate" className="icon-btn h-10 w-10">
+                    <Copy size={15} />
                   </button>
                   <button onClick={() => del(a)} aria-label={`Delete ${a.name}`} className="icon-btn h-10 w-10 text-red-500">
                     <Trash2 size={15} />
@@ -118,7 +123,8 @@ export default function SleekAutomations({
       {builder && (
         <SleekAutomationBuilder
           rooms={rooms}
-          initial={builder === "new" ? undefined : builder}
+          initial={builder.mode === "new" ? undefined : builder.item}
+          duplicate={builder.mode === "duplicate"}
           onCancel={() => setBuilder(null)}
           onSaved={() => {
             setBuilder(null);
