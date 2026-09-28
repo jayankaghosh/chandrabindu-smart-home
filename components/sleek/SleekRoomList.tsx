@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import type { Room } from "@/lib/types";
 import type { DeviceStatusState } from "../useHomeData";
+import { isChildLock } from "@/lib/panelLock";
 import NavTile from "./NavTile";
 import { gridContainer } from "./motion";
 
@@ -30,7 +31,7 @@ function roomOnCount(room: Room, statusByDevice: Record<string, DeviceStatusStat
     const vals = statusByDevice[d.id]?.values ?? {};
     // Protected controls (e.g. a modem meant to stay on) aren't user-facing
     // toggles, so they don't count toward the room's "N on".
-    for (const f of d.functions) if (f.type === "Boolean" && !f.protected && vals[f.code] === true) n++;
+    for (const f of d.functions) if (f.type === "Boolean" && !f.protected && !isChildLock(f.code) && vals[f.code] === true) n++;
   }
   return n;
 }

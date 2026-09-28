@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { ShieldCheck, Loader2, PlugZap, Ban } from "lucide-react";
 import type { Room } from "@/lib/types";
+import { isChildLock } from "@/lib/panelLock";
 
 // Non-dismissible setup gate. The app will not operate until an admin has named
 // the lifeline switch that powers the internet / router / hub (or declared that
@@ -31,7 +32,7 @@ export default function SuperProtectedGate({
       for (const d of room.devices) {
         if (d.bluetooth) continue;
         for (const f of d.functions) {
-          if (f.type !== "Boolean") continue;
+          if (f.type !== "Boolean" || isChildLock(f.code)) continue;
           out.push({
             key: `${d.id}::${f.code}`,
             deviceId: d.id,

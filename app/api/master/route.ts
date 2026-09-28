@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { guard, isRoomAccessible } from "@/lib/auth";
 import { isAppLocked } from "@/lib/config";
 import { getCatalogDevice, getModel } from "@/lib/store";
+import { isChildLock } from "@/lib/panelLock";
 import { setCommandLocal } from "@/lib/local";
 import { logAction } from "@/lib/logger";
 
@@ -40,7 +41,9 @@ export async function POST(req: Request) {
     }
     for (const device of room.devices) {
       if (device.bluetooth) continue;
-      const boolFns = device.functions.filter((f) => f.type === "Boolean");
+      // Never touch the panel lock (child_lock). Master on would lock every
+      // panel's physical buttons, master off would unlock them.
+      const boolFns = device.functions.filter((f) => f.type === "Boolean" && !isChildLock(f.code));
       if (boolFns.length === 0) continue;
       const meta = await getCatalogDevice(device.id);
       if (!meta) continue;

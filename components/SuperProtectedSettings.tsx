@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Loader2, CheckCircle2, ShieldCheck } from "lucide-react";
 import type { Room, SuperProtected } from "@/lib/types";
+import { isChildLock } from "@/lib/panelLock";
 
 type Option = { key: string; deviceId: string; code: string; label: string };
 
@@ -32,7 +33,7 @@ export default function SuperProtectedSettings() {
       for (const d of room.devices) {
         if (d.bluetooth) continue;
         for (const f of d.functions) {
-          if (f.type !== "Boolean") continue;
+          if (f.type !== "Boolean" || isChildLock(f.code)) continue;
           out.push({ key: `${d.id}::${f.code}`, deviceId: d.id, code: f.code, label: `${room.name} · ${d.name} · ${f.name}` });
         }
       }

@@ -325,6 +325,17 @@ real time when the gateway is up.
   - **UI.** Shown but locked in both tiles (`SleekControlTile`, `ControlTile`)
     with a loud "SUPER PROTECTED, cannot be turned off" overlay (`fn.superProtected`
     from `getModel`), replacing the plain protected grey-out.
+- **Panel lock (child lock)** (`lib/panelLock.ts` `CHILD_LOCK_CODE`/`isChildLock`,
+  `components/PanelLockToggle.tsx`): Tuya `kg` panels expose one `child_lock`
+  Boolean DP that disables the panel's physical buttons (app/LAN control still
+  works). It is **panel-wide** (no per-gang lock on this hardware). It is NOT
+  shown as a normal control tile: both themes filter `child_lock` out of the
+  control grid and render a dedicated "Buttons locked / unlocked" toggle in the
+  panel header (`SleekRoomDetail`, `RoomCard`). **Admins toggle it; everyone else
+  sees it read-only** (enforced server-side in the commands route, 403
+  `childLock`). It is also excluded from the "N on" counts and from the
+  super-protected picker (it is a lock, not a switch), and Master on/off never
+  touches it (else master-on would lock every panel).
 - **Auto-restore protected controls** (superadmin toggle, default OFF):
   `config.json#autoRestoreProtected` (getter/setter in `lib/config.ts`, toggle
   API `/api/protected/auto-restore` GET/PUT admin-only, UI switch in Settings →

@@ -20,7 +20,9 @@ import {
 import type { Room, UiDevice } from "@/lib/types";
 import ControlTile from "./ControlTile";
 import FavouritableControl from "./FavouritableControl";
+import PanelLockToggle from "./PanelLockToggle";
 import { favKey } from "./favKey";
+import { isChildLock } from "@/lib/panelLock";
 
 export interface DeviceStatusState {
   reachable: boolean | null;
@@ -352,8 +354,8 @@ function LockedRoomCard({
         className="pointer-events-none min-h-0 flex-1 select-none space-y-2.5 overflow-hidden px-4 pb-4 sm:px-5"
       >
         {room.devices.map((device) => {
-          const controllable = device.functions.filter((f) =>
-            CONTROLLABLE.includes(f.type),
+          const controllable = device.functions.filter(
+            (f) => CONTROLLABLE.includes(f.type) && !isChildLock(f.code),
           );
           if (controllable.length === 0) return null;
           return (
@@ -615,9 +617,10 @@ function DeviceGroup({
   const reachable = state?.reachable ?? null;
   const scanning = state?.scanning ?? false;
   const values = state?.values ?? {};
-  const controllable = device.functions.filter((f) =>
-    ["Boolean", "Enum", "Integer"].includes(f.type),
+  const controllable = device.functions.filter(
+    (f) => ["Boolean", "Enum", "Integer"].includes(f.type) && !isChildLock(f.code),
   );
+  const lockFn = device.functions.find((f) => isChildLock(f.code));
   const hasProtected = controllable.some((f) => f.protected);
   const onCount = controllable.filter(
     (f) => f.type === "Boolean" && !f.protected && values[f.code] === true,
@@ -716,15 +719,25 @@ function DeviceGroup({
             </span>
           )}
         </button>
-        {isAdmin && (
-          <button
-            onClick={startEditing}
-            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 transition-colors hover:bg-white/50 hover:text-slate-800"
-            title="Rename / move / relabel controls"
-          >
-            {editing ? <X size={13} /> : <Pencil size={12} />}
-          </button>
-        )}
+        <div className="flex shrink-0 items-center gap-2">
+          {lockFn && (
+            <PanelLockToggle
+              locked={values[lockFn.code] === true}
+              isAdmin={isAdmin}
+              disabled={reachable === false}
+              onToggle={(v) => onCommand(device.id, lockFn.code, v)}
+            />
+          )}
+          {isAdmin && (
+            <button
+              onClick={startEditing}
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 transition-colors hover:bg-white/50 hover:text-slate-800"
+              title="Rename / move / relabel controls"
+            >
+              {editing ? <X size={13} /> : <Pencil size={12} />}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Smoothly animated collapse */}

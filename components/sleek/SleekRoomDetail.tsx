@@ -6,9 +6,11 @@ import { Lock, LockOpen, Loader2, Bluetooth, Pencil, Check, X } from "lucide-rea
 import type { Room, UiDevice } from "@/lib/types";
 import type { DeviceStatusState } from "../useHomeData";
 import { favKey } from "../favKey";
+import { isChildLock } from "@/lib/panelLock";
 import { CONTROLLABLE } from "./labels";
 import { gridContainer, gridItem } from "./motion";
 import SleekControlTile from "./SleekControlTile";
+import PanelLockToggle from "../PanelLockToggle";
 import SleekDeviceEditSheet from "./SleekDeviceEditSheet";
 import SleekRoomLockSheet from "./SleekRoomLockSheet";
 
@@ -79,7 +81,8 @@ export default function SleekRoomDetail({
       )}
 
       {devices.map((device) => {
-        const controls = device.functions.filter((f) => CONTROLLABLE.includes(f.type));
+        const controls = device.functions.filter((f) => CONTROLLABLE.includes(f.type) && !isChildLock(f.code));
+        const lockFn = device.functions.find((f) => isChildLock(f.code));
         const values = statusByDevice[device.id]?.values ?? {};
         const reachable = statusByDevice[device.id]?.reachable ?? null;
         if (device.bluetooth) {
@@ -100,12 +103,24 @@ export default function SleekRoomDetail({
         }
         return (
           <div key={device.id}>
-            <DeviceLabel
-              device={device}
-              canEdit={canEdit}
-              onEdit={() => setEditing(device)}
-              offline={reachable === false}
-            />
+            <div className="flex items-center justify-between gap-3">
+              <DeviceLabel
+                device={device}
+                canEdit={canEdit}
+                onEdit={() => setEditing(device)}
+                offline={reachable === false}
+              />
+              {lockFn && (
+                <div className="mb-2.5 shrink-0 px-1">
+                  <PanelLockToggle
+                    locked={values[lockFn.code] === true}
+                    isAdmin={isAdmin}
+                    disabled={reachable === false}
+                    onToggle={(v) => onCommand(device.id, lockFn.code, v)}
+                  />
+                </div>
+              )}
+            </div>
             <motion.div
               variants={gridContainer}
               initial="hidden"

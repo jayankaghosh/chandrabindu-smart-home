@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession, guard, isRoomAccessible } from "@/lib/auth";
 import { isControlProtected, isSuperProtectedControl } from "@/lib/config";
+import { isChildLock } from "@/lib/panelLock";
 import { getCatalogDevice, getDeviceRoomId, getDeviceRoomName } from "@/lib/store";
 import { setCommandLocal } from "@/lib/local";
 import { logAction } from "@/lib/logger";
@@ -85,6 +86,13 @@ export async function POST(
           error: "This switch powers the whole system and cannot be turned off.",
           superProtected: true,
         },
+        { status: 403 },
+      );
+    }
+    // The panel lock (child_lock) can only be changed by an admin.
+    if (isChildLock(cmd.code) && session.role !== "admin") {
+      return NextResponse.json(
+        { error: "Only an admin can lock or unlock the panel buttons.", childLock: true },
         { status: 403 },
       );
     }
