@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { DeviceFunction } from "@/lib/types";
+import { ShieldCheck } from "lucide-react";
 import {
   controlKind,
   iconForControl,
@@ -24,6 +25,20 @@ function ProtectedBadge() {
       className="absolute bottom-2 right-2 z-10 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-600 shadow ring-1 ring-black/5"
     >
       Protected
+    </span>
+  );
+}
+
+/** Loud overlay marking the super-protected lifeline switch (never toggled). */
+function SuperBadge() {
+  return (
+    <span
+      title="Super-protected: powers the whole system, cannot be turned off"
+      className="pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center gap-0.5 rounded-[inherit] bg-slate-900/75 px-2 text-center backdrop-blur-[2px]"
+    >
+      <ShieldCheck size={22} className="text-emerald-300" />
+      <span className="text-[10px] font-bold uppercase tracking-wide text-white">Super protected</span>
+      <span className="text-[9px] font-medium leading-tight text-white/80">Cannot be turned off</span>
     </span>
   );
 }
@@ -60,14 +75,18 @@ export default function ControlTile({
 }) {
   const kind = controlKind(fn.name, fn.code);
   const Icon = iconForControl(kind);
+  // The lifeline switch: locked for everyone, shown but never toggled.
+  const superProtected = fn.superProtected === true;
+  const locked = disabled || superProtected;
+  const emit = superProtected ? () => {} : onChange;
 
   // ── Boolean → square lit tile ─────────────────────────────────────────────
   if (fn.type === "Boolean") {
     const on = value === true;
     return (
       <button
-        onClick={() => onChange(!on)}
-        disabled={disabled}
+        onClick={() => emit(!on)}
+        disabled={locked}
         aria-pressed={on}
         className={`group relative flex h-[120px] flex-col justify-between overflow-hidden rounded-[22px] p-3.5 text-left transition-all duration-300 hover:-translate-y-0.5 active:scale-[0.97] disabled:opacity-50 ${
           on
@@ -76,7 +95,7 @@ export default function ControlTile({
         }`}
       >
         {on && <Sheen />}
-        {isProtected && <ProtectedBadge />}
+        {superProtected ? <SuperBadge /> : isProtected && <ProtectedBadge />}
         <div className="relative flex items-start justify-between">
           <span
             className={`flex h-10 w-10 items-center justify-center rounded-full transition-colors ${
@@ -129,7 +148,7 @@ export default function ControlTile({
           }`}
         >
           {on && <Sheen />}
-          {isProtected && <ProtectedBadge />}
+          {superProtected ? <SuperBadge /> : isProtected && <ProtectedBadge />}
           <div className="relative mb-3 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <span
@@ -158,8 +177,8 @@ export default function ControlTile({
               return (
                 <button
                   key={opt}
-                  disabled={disabled}
-                  onClick={() => onChange(opt)}
+                  disabled={locked}
+                  onClick={() => emit(opt)}
                   className={`flex-1 rounded-full py-1.5 text-[11px] font-semibold transition-all disabled:opacity-50 ${
                     active
                       ? on
@@ -181,7 +200,8 @@ export default function ControlTile({
 
     // Non-numeric enum → wide pill tile
     return (
-      <div className={`col-span-2 overflow-hidden rounded-[22px] p-4 ${OFF_TILE}`}>
+      <div className={`relative col-span-2 overflow-hidden rounded-[22px] p-4 ${OFF_TILE}`}>
+        {superProtected && <SuperBadge />}
         <div className="mb-2.5 flex items-center gap-2.5">
           <span className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-400">
             <Icon size={18} />
@@ -196,8 +216,8 @@ export default function ControlTile({
             return (
               <button
                 key={opt}
-                disabled={disabled}
-                onClick={() => onChange(opt)}
+                disabled={locked}
+                onClick={() => emit(opt)}
                 className={`rounded-lg px-3 py-1.5 text-xs font-medium capitalize transition-all disabled:opacity-50 ${
                   active
                     ? "bg-gradient-to-r from-brand-500 to-brand-400 text-white dark:from-white dark:to-white dark:text-slate-900"
@@ -216,7 +236,7 @@ export default function ControlTile({
   // ── Integer (dimmer/level) → wide slider tile ─────────────────────────────
   if (fn.type === "Integer") {
     return (
-      <IntegerTile fn={fn} value={value} disabled={disabled} onChange={onChange} />
+      <IntegerTile fn={fn} value={value} disabled={locked} onChange={emit} superProtected={superProtected} />
     );
   }
 
@@ -228,11 +248,13 @@ function IntegerTile({
   value,
   disabled,
   onChange,
+  superProtected,
 }: {
   fn: DeviceFunction;
   value: unknown;
   disabled?: boolean;
   onChange: (value: unknown) => void;
+  superProtected?: boolean;
 }) {
   const kind = controlKind(fn.name, fn.code);
   const Icon = iconForControl(kind);
@@ -250,7 +272,8 @@ function IntegerTile({
   const pct = max > min ? ((local - min) / (max - min)) * 100 : 0;
 
   return (
-    <div className={`col-span-2 overflow-hidden rounded-[22px] p-4 ${OFF_TILE}`}>
+    <div className={`relative col-span-2 overflow-hidden rounded-[22px] p-4 ${OFF_TILE}`}>
+      {superProtected && <SuperBadge />}
       <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <span className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-400">

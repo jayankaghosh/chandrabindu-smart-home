@@ -23,6 +23,7 @@ import Assistant from "./Assistant";
 import ThemeToggle from "./ThemeToggle";
 import ProtectedAlert from "./ProtectedAlert";
 import LockedOverlay from "./LockedOverlay";
+import SuperProtectedGate from "./SuperProtectedGate";
 import ClassicDeprecationNotice from "./ClassicDeprecationNotice";
 import { setUiTheme } from "./uiTheme";
 
@@ -61,6 +62,8 @@ export default function Dashboard({
   const router = useRouter();
   const isAdmin = role === "admin";
   const [rooms, setRooms] = useState<Room[] | null>(null);
+  // Lifeline-switch setup state. undefined = not loaded yet (don't gate).
+  const [superProtectedConfigured, setSuperProtectedConfigured] = useState<boolean | undefined>(undefined);
   const [syncedAt, setSyncedAt] = useState<number | null>(null);
   const [houseName, setHouseName] = useState("Home");
   const [error, setError] = useState<string | null>(null);
@@ -189,6 +192,7 @@ export default function Dashboard({
       setRooms(data.rooms);
       setSyncedAt(data.syncedAt);
       setAiAvailable(Boolean(data.aiAvailable));
+      setSuperProtectedConfigured(Boolean(data.superProtected?.configured));
       if (data.houseName) setHouseName(data.houseName);
       roomsRef.current = data.rooms;
       // Status is fetched per-device only while expanded (see RoomCard).
@@ -650,6 +654,12 @@ export default function Dashboard({
       )}
 
       <LockedOverlay isAdmin={isAdmin} />
+      <SuperProtectedGate
+        isAdmin={isAdmin}
+        configured={superProtectedConfigured}
+        rooms={rooms ?? []}
+        onConfigured={load}
+      />
     </div>
   );
 }

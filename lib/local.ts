@@ -16,7 +16,7 @@ import type {
   DeviceStatus,
 } from "./types";
 import { readCatalog, writeCatalog } from "./store";
-import { isAppLocked } from "./config";
+import { getSuperProtected, isAppLocked } from "./config";
 import {
   gatewayConfigured,
   gatewayGetStatus,
@@ -30,6 +30,24 @@ export class AppLockedError extends Error {
     super("App is locked (loop protection). An admin must unlock it.");
     this.name = "AppLockedError";
   }
+}
+
+/** Thrown when something tries to turn OFF the super-protected lifeline switch. */
+export class SuperProtectedError extends Error {
+  constructor() {
+    super("This switch powers the whole system and cannot be turned off.");
+    this.name = "SuperProtectedError";
+  }
+}
+
+/** Is a datapoint value "off"? Lifeline switches are Boolean; be lenient. */
+function isOffValue(v: unknown): boolean {
+  if (v === false || v === 0) return true;
+  if (typeof v === "string") {
+    const s = v.toLowerCase();
+    return s === "false" || s === "off" || s === "0";
+  }
+  return false;
 }
 
 const VERSIONS = ["3.4", "3.3", "3.5", "3.1"];
@@ -541,6 +559,14 @@ export async function setCommandLocal(
   // Safety lock: when the loop-protection kill switch has tripped, refuse ALL
   // actuation (manual, routines, voice, AI, scheduler) until an admin unlocks.
   if (isAppLocked()) throw new AppLockedError();
+  // The super-protected lifeline switch can never be turned off, from any path
+  // (manual, routine, automation, master-off, voice, AI, scheduler).
+  const sp = getSuperProtected();
+  if (sp && "deviceId" in sp && meta.id === sp.deviceId) {
+    if (commands.some((c) => c.code === sp.code && isOffValue(c.value))) {
+      throw new SuperProtectedError();
+    }
+  }
   // Prefer the gateway (sends over its already-open connection). Fall back to a
   // direct command only if the gateway itself is unreachable.
   if (gatewayConfigured()) {

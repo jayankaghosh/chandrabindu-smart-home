@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { guard, isRoomAccessible } from "@/lib/auth";
 import { getModel, updateOverrides } from "@/lib/store";
-import { getHouseName, getLockInfo, isAiEnabled, isAppLocked, isRoomLocked } from "@/lib/config";
+import { getHouseName, getLockInfo, getSuperProtected, isAiEnabled, isAppLocked, isRoomLocked, isSuperProtectedConfigured } from "@/lib/config";
 import { logAction } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +26,7 @@ export async function GET() {
     aiAvailable: isAiEnabled(),
     locked: isAppLocked(),
     lockInfo: getLockInfo(),
+    superProtected: { configured: isSuperProtectedConfigured(), value: getSuperProtected() },
   });
 }
 

@@ -30,8 +30,8 @@ function readJson(p, fallback) {
   }
 }
 
-// Read the protected config: the set of "deviceId::code" keys plus whether the
-// superadmin has enabled auto-restore at all.
+// Read the protected config: the set of "deviceId::code" keys, whether the
+// superadmin has enabled auto-restore, and the super-protected lifeline switch.
 function loadConfig() {
   const cfg = readJson(CONFIG_PATH, {});
   const map = cfg && cfg.protectedControls ? cfg.protectedControls : {};
@@ -39,7 +39,12 @@ function loadConfig() {
   for (const [deviceId, codes] of Object.entries(map)) {
     for (const code of codes || []) set.add(`${deviceId}::${code}`);
   }
-  return { set, enabled: cfg.autoRestoreProtected === true };
+  // The lifeline switch (powers internet / router). Only the {deviceId,code}
+  // form is enforceable; {none:true} means the main switch isn't smart.
+  const sp = cfg && cfg.superProtected;
+  const superProtected = sp && sp.deviceId && sp.code ? { deviceId: sp.deviceId, code: sp.code } : null;
+  const superKey = superProtected ? `${superProtected.deviceId}::${superProtected.code}` : null;
+  return { set, enabled: cfg.autoRestoreProtected === true, superProtected, superKey };
 }
 
 // Is this datapoint value "off"? Protected controls are Boolean switches; be
@@ -76,6 +81,7 @@ class ProtectedGuard {
     this.gateway = gateway;
     this.enabled = false;
     this.protectedSet = new Set();
+    this.superKey = null; // "deviceId::code" of the lifeline switch, or null
     this.cooldown = new Map(); // key -> last attempt ms
     this.attempts = new Map(); // key -> { count, windowStart }
   }
@@ -92,15 +98,21 @@ class ProtectedGuard {
   }
 
   reload() {
-    const { set, enabled } = loadConfig();
+    const { set, enabled, superProtected, superKey } = loadConfig();
     this.protectedSet = set;
     this.enabled = enabled;
+    this.superKey = superKey;
+    // Hand the lifeline switch to the gateway so it refuses any off command.
+    this.gateway.superProtected = superProtected;
   }
 
   onChange(e) {
-    if (!e || !this.enabled) return; // disabled → do nothing
+    if (!e) return;
     const key = `${e.deviceId}::${e.code}`;
-    if (!this.protectedSet.has(key)) return;
+    const isSuper = this.superKey !== null && key === this.superKey;
+    // The lifeline switch is ALWAYS restored if it goes off, even when the
+    // global auto-restore toggle is off. Other controls only when enabled.
+    if (!isSuper && (!this.enabled || !this.protectedSet.has(key))) return;
     if (!isOff(e.value)) {
       // Back on (our restore worked, or someone turned it on) — reset the breaker.
       this.attempts.delete(key);

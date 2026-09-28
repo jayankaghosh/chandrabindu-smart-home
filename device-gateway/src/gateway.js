@@ -11,6 +11,19 @@ class Gateway extends EventEmitter {
     super();
     this.connections = new Map(); // deviceId -> DeviceConnection
     this.locked = false; // set by LoopGuard; when true, all commands are refused
+    // The lifeline switch {deviceId,code}, set by ProtectedGuard from config.
+    // It can never be turned off, from any source. null when unset / non-smart.
+    this.superProtected = null;
+  }
+
+  // Is a datapoint value "off"? Lifeline switches are Boolean; be lenient.
+  _isOff(v) {
+    if (v === false || v === 0) return true;
+    if (typeof v === "string") {
+      const s = v.toLowerCase();
+      return s === "false" || s === "off" || s === "0";
+    }
+    return false;
   }
 
   // Build a fresh connection per catalog device. Reused by start() and reinit().
@@ -68,6 +81,15 @@ class Gateway extends EventEmitter {
     // Hard stop: while the loop-protection lock is engaged, refuse every command
     // from every source (automations, groups, protect-restore, the app).
     if (this.locked) throw new Error("app is locked (loop protection)");
+    // The lifeline switch can never be turned off, from any source (group sync,
+    // rule engine, the app). Turning it ON is fine (that is how it self-restores).
+    if (this.superProtected && id === this.superProtected.deviceId) {
+      for (const c of commands || []) {
+        if (c && c.code === this.superProtected.code && this._isOff(c.value)) {
+          throw new Error("super-protected switch cannot be turned off");
+        }
+      }
+    }
     const conn = this.get(id);
     if (!conn) throw new Error("unknown device");
     return conn.command(commands);

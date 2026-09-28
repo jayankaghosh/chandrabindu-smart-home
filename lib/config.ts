@@ -6,7 +6,7 @@
 import crypto from "crypto";
 import fs from "fs";
 import path from "path";
-import type { TuyaCreds } from "./types";
+import type { SuperProtected, TuyaCreds } from "./types";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const CONFIG_PATH = path.join(DATA_DIR, "config.json");
@@ -49,6 +49,12 @@ interface AppConfig {
   roomLocks?: Record<string, RoomLock>;
   /** Protected controls (critical — should stay on): deviceId -> control codes. */
   protectedControls?: Record<string, string[]>;
+  /**
+   * The single lifeline switch that powers the internet / router / hub. Either a
+   * specific smart control, or `{none:true}` when the main switch is not smart.
+   * Unset means the app is not fully configured and refuses to operate.
+   */
+  superProtected?: SuperProtected;
   /**
    * When true, the gateway turns a protected control back ON the moment it goes
    * off (physically, from SmartLife, anywhere). Superadmin toggle; default off.
@@ -135,6 +141,7 @@ export function setPassword(password: string): void {
     users: existing?.users,
     roomLocks: existing?.roomLocks,
     protectedControls: existing?.protectedControls,
+    superProtected: existing?.superProtected,
     autoRestoreProtected: existing?.autoRestoreProtected,
     tuya: existing?.tuya,
     openrouter: existing?.openrouter,
@@ -374,6 +381,53 @@ export function listProtectedControls(): { deviceId: string; code: string }[] {
     for (const code of codes) out.push({ deviceId, code });
   }
   return out;
+}
+
+// ── Super-protected switch (the lifeline that powers internet / router) ──────
+
+/** The configured lifeline switch, or null when it has not been set yet. */
+export function getSuperProtected(): SuperProtected | null {
+  const sp = read()?.superProtected;
+  if (!sp) return null;
+  if ((sp as { none?: boolean }).none === true) return { none: true };
+  const s = sp as { deviceId?: string; code?: string };
+  if (s.deviceId && s.code) return { deviceId: s.deviceId, code: s.code };
+  return null;
+}
+
+/** True once an admin has either chosen a switch or declared it non-smart. */
+export function isSuperProtectedConfigured(): boolean {
+  return getSuperProtected() !== null;
+}
+
+/** True if this control IS the super-protected lifeline switch. */
+export function isSuperProtectedControl(deviceId: string, code: string): boolean {
+  const sp = getSuperProtected();
+  return Boolean(sp && "deviceId" in sp && sp.deviceId === deviceId && sp.code === code);
+}
+
+/**
+ * Set the lifeline switch. A device selection is also added to the protected set
+ * so it inherits all protected behaviour (excluded from counts, never actuated
+ * by automations, skipped by master-off, popup when off). `{none:true}` records
+ * that the main switch is not smart and simply satisfies the setup gate.
+ */
+export function setSuperProtected(value: SuperProtected): void {
+  const config = read();
+  if (!config) throw new Error("App is not onboarded yet");
+  if ("none" in value) {
+    write({ ...config, superProtected: { none: true } });
+    return;
+  }
+  const map = { ...(config.protectedControls ?? {}) };
+  const set = new Set(map[value.deviceId] ?? []);
+  set.add(value.code);
+  map[value.deviceId] = [...set];
+  write({
+    ...config,
+    superProtected: { deviceId: value.deviceId, code: value.code },
+    protectedControls: map,
+  });
 }
 
 /** Whether the gateway auto-restores protected controls when they go off. */

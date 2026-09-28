@@ -120,7 +120,7 @@ to the browser), `app/api/gateway/route.ts` + `app/api/gateway/reinit/route.ts`
 
 | File / dir | Contents | Written by |
 |------------|----------|------------|
-| `config.json` | Admin `passwordHash`/`Salt`, auto-generated `sessionSecret`, `houseName`, `users[]` (standard users), room locks, Tuya creds, insights model, **protected controls**, `location` (lat/lng), app `locked`+`lockInfo`, `loopGuard` thresholds | onboarding, Settings, `lib/config.ts` (+ gateway `loopguard.js` writes `locked`) |
+| `config.json` | Admin `passwordHash`/`Salt`, auto-generated `sessionSecret`, `houseName`, `users[]` (standard users), room locks, Tuya creds, insights model, **protected controls**, **`superProtected`** (the lifeline switch, or `{none:true}`), `location` (lat/lng), app `locked`+`lockInfo`, `loopGuard` thresholds | onboarding, Settings, `lib/config.ts` (+ gateway `loopguard.js` writes `locked`) |
 | `catalog.json` | Synced device catalog: `rooms[]` + `devices[]` (id, **key**, version, category, cloudName, functions with dpId/type/name/range) | cloud sync, `lib/store.ts` |
 | `overrides.json` | Local edits that survive re-sync: `deviceRoom`, `deviceName`, `roomName`, `controlName`, `extraRooms` | Settings/rename, `lib/store.ts` |
 | `automations.json` | `automations[]` (match all/any, conditions[] incl. time/sun triggers, actions[] incl. run-routine) | web UI, `lib/automations.ts` |
@@ -300,6 +300,31 @@ real time when the gateway is up.
   `SleekApp.tsx` / `Dashboard.tsx`); Classic also keeps its inline red banner as
   the after-dismiss reminder. The gateway rule engine never auto-actuates a
   protected control as an automation *action*.
+- **Super-protected switch / lifeline** (`config.json#superProtected`,
+  `/api/super-protected`, `components/SuperProtectedGate.tsx`,
+  `components/SuperProtectedSettings.tsx`): the single switch that powers the
+  internet, router and hub. It is a stricter form of a protected control:
+  - **Setup gate.** Until an admin sets it, the app refuses to operate. Every
+    signed-in client renders `SuperProtectedGate` (z-[95], both themes, driven by
+    `superProtected.configured` from `/api/rooms`). A normal user sees "contact
+    your admin"; an admin gets a Boolean-control picker plus a "my main switch
+    isn't a smart switch" button (saves `{none:true}`, which satisfies the gate
+    without protecting anything). Also settable in Settings, "Main power switch".
+  - **Value shapes** (`SuperProtected` in `lib/types.ts`): `null` (unset, gate on),
+    `{deviceId, code}` (a smart switch), or `{none:true}` (dumb switch, gate off,
+    no enforcement or badge). Choosing a device also adds it to the protected set,
+    so it inherits all protected behaviour (excluded from counts, skipped by
+    master-off, never actuated by automations, the off-popup).
+  - **Cannot be turned off, from any path.** Enforced server-side at the command
+    route (403 `superProtected`), at `setCommandLocal` (`SuperProtectedError`,
+    covers routines/voice/AI/scheduler/master), and in the gateway's `command()`
+    (covers group sync + rule engine). Turning it ON is always allowed.
+  - **Always auto-restored.** The gateway `ProtectedGuard` restores the lifeline
+    switch the instant it goes off, even when the global auto-restore toggle is
+    OFF (it reads `superProtected` from config, sets `gateway.superProtected`).
+  - **UI.** Shown but locked in both tiles (`SleekControlTile`, `ControlTile`)
+    with a loud "SUPER PROTECTED, cannot be turned off" overlay (`fn.superProtected`
+    from `getModel`), replacing the plain protected grey-out.
 - **Auto-restore protected controls** (superadmin toggle, default OFF):
   `config.json#autoRestoreProtected` (getter/setter in `lib/config.ts`, toggle
   API `/api/protected/auto-restore` GET/PUT admin-only, UI switch in Settings →

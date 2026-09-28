@@ -24,6 +24,7 @@ import SleekScreensaverSettings from "./SleekScreensaverSettings";
 import SleekVoice from "./SleekVoice";
 import ProtectedAlert from "../ProtectedAlert";
 import LockedOverlay from "../LockedOverlay";
+import SuperProtectedGate from "../SuperProtectedGate";
 import SleekMasterControl from "./SleekMasterControl";
 import SleekScreensaver from "./SleekScreensaver";
 import { screenTransition, screenVariants } from "./motion";
@@ -368,6 +369,12 @@ export default function SleekApp({ role, username }: { role: "admin" | "user"; u
         stats={{ rooms: roomCount, devices: deviceCount, on: onCount, offline, protectedCount }}
       />
       <LockedOverlay isAdmin={isAdmin} locked={data.locked} info={data.lockInfo} onUnlocked={data.reload} />
+      <SuperProtectedGate
+        isAdmin={isAdmin}
+        configured={data.superProtectedConfigured}
+        rooms={rooms ?? []}
+        onConfigured={data.reload}
+      />
     </div>
   );
 }

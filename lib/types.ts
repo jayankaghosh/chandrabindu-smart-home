@@ -104,7 +104,18 @@ export interface DeviceFunction {
   unit?: string;
   /** Admin-marked critical control — never auto-toggled, control restricted. */
   protected?: boolean;
+  /** The single "super-protected" lifeline switch (powers the router / LAN).
+   *  Cannot be turned off by anyone; shown but locked in the UI. */
+  superProtected?: boolean;
 }
+
+/**
+ * The single lifeline switch that powers the internet, router and hub. Turning
+ * it off kills the whole system. It is either a specific smart control, or a
+ * flag that the main switch is a dumb (non-smart) switch that cannot be managed
+ * here. When unset (null), the app refuses to operate until an admin sets it.
+ */
+export type SuperProtected = { deviceId: string; code: string } | { none: true };
 
 export interface DeviceStatus {
   code: string;

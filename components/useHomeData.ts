@@ -34,6 +34,8 @@ export function useHomeData() {
   const [favourites, setFavourites] = useState<Set<string>>(new Set());
   const [locked, setLocked] = useState(false);
   const [lockInfo, setLockInfo] = useState<{ at: number; reason?: string; deviceId?: string; code?: string } | null>(null);
+  // Lifeline-switch setup state. undefined = not loaded yet (don't gate).
+  const [superProtectedConfigured, setSuperProtectedConfigured] = useState<boolean | undefined>(undefined);
   const liveRef = useRef(live);
   liveRef.current = live;
 
@@ -52,6 +54,7 @@ export function useHomeData() {
       if (data.houseName) setHouseName(data.houseName);
       setLocked(Boolean(data.locked));
       setLockInfo(data.lockInfo ?? null);
+      setSuperProtectedConfigured(Boolean(data.superProtected?.configured));
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -271,6 +274,7 @@ export function useHomeData() {
     protectedOff,
     locked,
     lockInfo,
+    superProtectedConfigured,
     reload: load,
   };
 }

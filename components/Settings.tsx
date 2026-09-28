@@ -22,6 +22,7 @@ import {
   Cpu,
   Palette,
   ShieldAlert,
+  ShieldCheck,
   Mic,
 } from "lucide-react";
 import { REGIONS } from "@/lib/regions";
@@ -31,6 +32,7 @@ import ChangePassword from "./ChangePassword";
 import DevicePairing from "./DevicePairing";
 import GatewayControl from "./GatewayControl";
 import ThemeSelect from "./ThemeSelect";
+import SuperProtectedSettings from "./SuperProtectedSettings";
 
 // Realtime voice options for the Settings dropdowns.
 const REALTIME_MODELS = [
@@ -560,6 +562,11 @@ export default function Settings({ isAdmin }: { isAdmin: boolean }) {
             </button>
           </form>
           {locMsg && <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{locMsg}</p>}
+        </Section>
+
+        {/* Super-protected switch (the lifeline that powers internet / router) */}
+        <Section icon={<ShieldCheck size={16} />} title="Main power switch">
+          <SuperProtectedSettings />
         </Section>
 
         {/* Loop protection */}

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession, guard, isRoomAccessible } from "@/lib/auth";
-import { isControlProtected } from "@/lib/config";
+import { isControlProtected, isSuperProtectedControl } from "@/lib/config";
 import { getCatalogDevice, getDeviceRoomId, getDeviceRoomName } from "@/lib/store";
 import { setCommandLocal } from "@/lib/local";
 import { logAction } from "@/lib/logger";
@@ -71,6 +71,21 @@ export async function POST(
       return NextResponse.json(
         { error: "Each command needs a code" },
         { status: 400 },
+      );
+    }
+    // The super-protected lifeline switch can never be turned off, by anyone.
+    if (
+      isSuperProtectedControl(params.id, cmd.code) &&
+      cmd.value !== true &&
+      cmd.value !== 1 &&
+      cmd.value !== "on"
+    ) {
+      return NextResponse.json(
+        {
+          error: "This switch powers the whole system and cannot be turned off.",
+          superProtected: true,
+        },
+        { status: 403 },
       );
     }
     // Protected controls can only be changed by an admin.

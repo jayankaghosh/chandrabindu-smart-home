@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Star, ShieldAlert, X, Check, Link2 } from "lucide-react";
+import { Star, ShieldAlert, X, Check, Link2, ShieldCheck } from "lucide-react";
 import type { DeviceFunction } from "@/lib/types";
 import { controlKind, iconForControl, KIND_ON_GRADIENT, KIND_GLOW } from "@/lib/icons";
 import { enumLabel, isOn, valueLabel } from "./labels";
@@ -39,10 +39,13 @@ export default function SleekControlTile({
   const Icon = iconForControl(kind);
   const on = isOn(fn, value);
   const wide = fn.type !== "Boolean";
+  // The lifeline switch: locked for everyone, shown but never toggled.
+  const superProtected = fn.superProtected === true;
+  const locked = disabled || superProtected;
 
   // Route a command through a confirm step for protected controls (admin only).
   function request(v: unknown) {
-    if (disabled) return;
+    if (locked) return; // super-protected can't be toggled by anyone
     if (isProtected && isAdmin) {
       setPending(v);
       return;
@@ -64,7 +67,7 @@ export default function SleekControlTile({
         {fn.type === "Boolean" && (
           <motion.button
             whileTap={{ scale: 0.96 }}
-            disabled={disabled}
+            disabled={locked}
             onClick={() => request(value !== true)}
             className={`flex h-[140px] w-full flex-col justify-between overflow-hidden rounded-[26px] p-4 text-left transition-colors disabled:opacity-50 ${litClasses}`}
           >
@@ -101,7 +104,7 @@ export default function SleekControlTile({
                   <motion.button
                     key={opt}
                     whileTap={{ scale: 0.94 }}
-                    disabled={disabled}
+                    disabled={locked}
                     onClick={() => request(opt)}
                     className={`min-w-[64px] flex-1 rounded-xl px-3 py-3 text-sm font-semibold transition-colors disabled:opacity-50 ${
                       active
@@ -139,7 +142,7 @@ export default function SleekControlTile({
               max={fn.max ?? 100}
               step={fn.step ?? 1}
               defaultValue={typeof value === "number" ? value : fn.min ?? 0}
-              disabled={disabled}
+              disabled={locked}
               onPointerUp={(e) => request(Number((e.target as HTMLInputElement).value))}
               className="w-full"
             />
@@ -149,12 +152,27 @@ export default function SleekControlTile({
         {/* Protected overlay — greys out the whole tile to mark a control
             that shouldn't be toggled (non-admins can't; admins tap through
             to confirm). */}
-        {isProtected && (
+        {isProtected && !superProtected && (
           <div
             title="Protected control"
             aria-label="Protected control"
             className="pointer-events-none absolute inset-0 z-10 rounded-[26px] bg-slate-400/50 backdrop-grayscale dark:bg-slate-900/55"
           />
+        )}
+
+        {/* Super-protected: the lifeline switch. Loud, locked, never toggled. */}
+        {superProtected && (
+          <div
+            title="Super-protected: powers the whole system, cannot be turned off"
+            aria-label="Super-protected: powers the whole system, cannot be turned off"
+            className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-[26px] bg-slate-900/75 p-3 text-center backdrop-blur-[2px]"
+          >
+            <ShieldCheck size={30} className="text-emerald-300" />
+            <p className="text-[13px] font-bold uppercase tracking-wide text-white">Super protected</p>
+            <p className="text-[11px] font-medium leading-tight text-white/80">
+              Powers the whole system. Cannot be turned off.
+            </p>
+          </div>
         )}
 
         {/* Switch-group indicator */}
