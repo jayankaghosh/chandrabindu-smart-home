@@ -92,6 +92,7 @@ data class Automation(
     val id: String,
     val name: String,
     val enabled: Boolean,
+    val match: String = "all",
     val conditionCount: Int,
     val actionCount: Int,
 )
@@ -102,6 +103,7 @@ data class RoomsResponse(
     val locked: Boolean,
     val lockReason: String?,
     val setupConfigured: Boolean,
+    val aiAvailable: Boolean = false,
 )
 
 data class LoginResult(val username: String, val role: String, val token: String)
@@ -178,6 +180,7 @@ object Parse {
             locked = o.optBoolean("locked", false),
             lockReason = o.optJSONObject("lockInfo")?.optStringOrNull("reason"),
             setupConfigured = o.optJSONObject("superProtected")?.optBoolean("configured", true) ?: true,
+            aiAvailable = o.optBoolean("aiAvailable", false),
         )
     }
 
@@ -198,6 +201,7 @@ object Parse {
             id = id,
             name = a.optStringOrNull("name") ?: id,
             enabled = a.optBoolean("enabled", false),
+            match = a.optString("match", "all"),
             conditionCount = a.optJSONArray("conditions")?.length() ?: 0,
             actionCount = a.optJSONArray("actions")?.length() ?: 0,
         )

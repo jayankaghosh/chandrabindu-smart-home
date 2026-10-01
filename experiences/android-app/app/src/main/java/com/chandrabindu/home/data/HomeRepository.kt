@@ -256,6 +256,7 @@ class HomeRepository(context: Context) {
                 appLocked = rooms.locked,
                 lockReason = rooms.lockReason,
                 setupIncomplete = !rooms.setupConfigured,
+                aiAvailable = rooms.aiAvailable,
                 favourites = f ?: s.favourites,
                 routines = r ?: s.routines,
                 automations = a ?: s.automations,
@@ -441,6 +442,9 @@ class HomeRepository(context: Context) {
         _state.update { it.copy(phase = Phase.NEEDS_LOGIN, loginError = null) }
     }
 
+    /** For screens calling the hub directly: a 401 there means the session is gone. */
+    fun sessionExpired() = expireSession()
+
     private fun expireSession() {
         clearSession()
         _state.update { it.copy(phase = Phase.NEEDS_LOGIN, loginError = "Your session ended. Please sign in again.") }
@@ -613,7 +617,9 @@ class HomeRepository(context: Context) {
     }
 
     /** Unlock a password-locked room for this session. Returns an error message, or null. */
-    suspend fun unlockRoom(room: Room, password: String): String? = main {
+    suspend fun unlockRoom(room: Room, password: String): String? = scope.async {
+        // Runs in the repository's scope: the password screen leaves composition as soon as
+        // the room reads as unlocked, and that must not cancel the follow-up status read.
         try {
             client.send("/api/rooms/${room.id}/unlock", body = JSONObject().put("password", password))
             reloadQuietly()
@@ -626,7 +632,7 @@ class HomeRepository(context: Context) {
             handle(e)
             "Couldn't unlock the room."
         }
-    }
+    }.await()
 
     fun toggleAutomation(automation: Automation) {
         if (!current.isAdmin) return
@@ -645,14 +651,14 @@ class HomeRepository(context: Context) {
         }
     }
 
-    fun toggleFavourite(ref: ControlRef) {
+    fun toggleFavourite(ref: ControlRef, announce: Boolean = true) {
         val fav = Favourite(ref.device.id, ref.fn.code)
         val make = !current.isFavourite(ref)
         fun apply(add: Boolean) = _state.update { s ->
             s.copy(favourites = if (add) (s.favourites - fav) + fav else s.favourites - fav)
         }
         apply(make)
-        show(if (make) "Added ${ref.fn.name} to Favourites" else "Removed ${ref.fn.name} from Favourites")
+        if (announce) show(if (make) "Added ${ref.fn.name} to Favourites" else "Removed ${ref.fn.name} from Favourites")
         scope.launch {
             try {
                 client.send(

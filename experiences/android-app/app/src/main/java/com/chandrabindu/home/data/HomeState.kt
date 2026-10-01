@@ -31,6 +31,7 @@ data class HomeState(
     val appLocked: Boolean = false,
     val lockReason: String? = null,
     val setupIncomplete: Boolean = false,
+    val aiAvailable: Boolean = false,
     val live: Boolean = false,
     val statusLoadedAt: Long? = null,
     val pending: Set<String> = emptySet(),

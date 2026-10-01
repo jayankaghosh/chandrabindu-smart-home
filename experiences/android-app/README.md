@@ -11,9 +11,8 @@ controlling the house **without opening the app at all**.
 | Set a fan level or dimmer without opening the app | Drag its Device control (fan levels snap to Off/Low/Med/High/Max) |
 | Toggle any switch | 1 tap in Device controls (power menu / shade, works from the lock screen) |
 | Everything off | 2 taps (the "All off" tile, then confirm) |
-| In the app: favourite / routine / room off | 1 tap |
-| In the app: All off / All on | 2 taps (tap, then confirm) |
-| In the app: find anything | Type a few letters in search, tap the result |
+| In the app: a favourite or a routine | 1 tap from the home grid's section |
+| In the app: All off / All on | 2 taps on the floating power button, then confirm |
 
 ## Surfaces
 
@@ -29,12 +28,28 @@ controlling the house **without opening the app at all**.
   tiles. Each tile shows on/off, the control name and its room.
 - **Home-screen widget**. "N on" plus your favourites as one-tap toggles (one column
   when narrow, two when wide). Protected or locked favourites open the app instead.
-- **The app**. Header with Live/Updated status, search (rooms, panels, controls,
-  routines), favourite tiles, routine chips with an inline result, rooms that
-  expand in place with a one-tap "room off", fan levels as segments, dimmer
-  sliders that send on release, and automations (admins can switch them on and
-  off). Long-press any control to add or remove it from Favourites. The open-in-new
-  icon opens the **full web app**, already signed in.
+- **The app**: a native Compose copy of the web app's **Sleek** mobile view, in light
+  and dark, over the hub's own background photo (`/background/sleek.jpg`, falling back to
+  `/background.jpg`) and logo (`/logo.png`), cached so they show while away.
+  - Home: greeting and house name, sun/moon theme toggle (defaults to the system,
+    remembered), settings, log out, the "N on" pill, and the section tiles
+    (Favourites, Rooms, Routines, Automations, Shortcuts, Switch Groups, Usage, Insights).
+  - Inner screens have Back / title / theme / Home, and slide like the web's nav stack
+    (the stack is restored on relaunch).
+  - Rooms: cards with "N on" badges. A room: switcher pills with on-count badges,
+    per-panel sections with the "Buttons locked/unlocked" pill (admins toggle), and the
+    web's control tiles (lit gradient per kind, white in dark mode, fan levels as
+    segments, dimmer sliders that send on release, favourite star, switch-group link).
+  - Routines and Shortcuts run with the result inline ("Conditions not met" when a
+    shortcut's IF fails), automations show IF/THEN with an admin enable toggle, switch
+    groups are listed read-only, Usage shows on/off time and toggles per switch over a
+    range, and Insights loads or generates the AI report.
+  - Everywhere: the All On / All Off button (bottom-left, with a confirm), the AI
+    assistant (bottom-right, when the hub has AI on; proposed actions need your OK),
+    the protected-off popup on launch, the app-lock overlay and the setup gate.
+  - The gear opens the app's own settings (hub address, appearance, Quick Settings tile
+    bindings, account, a link to the full web app for building routines, automations
+    and groups).
 
 The app follows the web app's rules, and the hub enforces them anyway. Protected
 controls are admin-only and need a second tap. The lifeline switch shows "Always
@@ -102,7 +117,9 @@ controls and widget, and you sign in again.
 | `data/HomeState.kt` | Immutable state plus derived rules (blocks, counts, search, favourites, tile bindings) |
 | `data/Models.kt`, `data/Controls.kt` | Hub types and control semantics (mirror the web app and the macOS app) |
 | `data/Storage.kt` | Keystore-encrypted token and cookies, plain prefs (address, tile choices, a names-only cache) |
-| `ui/` | Compose screens: home panel, controls, unreachable, sign-in, settings, full-app WebView |
+| `ui/sleek/` | The Sleek screens (port of `components/sleek/`): style tokens, backdrop, nav, tiles, rooms, lists, usage, insights, assistant, overlays, settings; `Lucide.kt` is generated from lucide-react so icons match the web |
+| `ui/` | `MainActivity` (theme + routing) and the full-app WebView |
+| `data/SleekApi.kt` | Endpoints only the Sleek screens use (shortcuts, switch groups, usage, insights, assistant, setup gate) |
 | `controls/HomeControlsService.kt` | Device controls provider |
 | `tiles/Tiles.kt` | Quick Settings tiles |
 | `widget/HomeWidget.kt` | Glance widget |

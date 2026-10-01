@@ -577,8 +577,18 @@ the app:
   tiles bound to favourites.
 - **Glance widget** (`widget/HomeWidget.kt`): "N on" + one-tap favourites, "Away"
   when unreachable (refreshes on network change, the 30-min system update, or tap).
-- In-app panel mirrors the Mac panel; "Open full app" = `WebAppActivity`
-  (WebView with the `shc_session` cookie, file chooser, downloads).
+- **In-app screens are a native Compose copy of the web's Sleek mobile view**
+  (`ui/sleek/`): light/dark with the web's colours (dark = monochrome), a
+  remembered sun/moon toggle, the hub's `/background/sleek.jpg` (fallback
+  `/background.jpg`) + `/logo.png` as backdrop/logo, the same nav stack, home
+  section grid, room switcher, SleekControlTile-style tiles, Master on/off FAB,
+  protected popup, app-lock overlay and setup gate. Icons come from `Lucide.kt`,
+  generated from the repo's lucide-react glyphs. Native Favourites, Rooms, room
+  detail, Routines, Automations, Shortcuts, Switch Groups, Usage, Insights and
+  the AI assistant chat; Screensaver, Voice and admin Edit Mode authoring are
+  intentionally not in the Android app (web only). The gear opens the app's own
+  settings (hub address, theme, tile bindings, account). Keep it visually in
+  step with `components/sleek/` when the web UI changes.
 `data/HomeRepository.kt` holds all state; live updates are reference-counted
 (app, controls panel, open tiles) and stop 15s after nothing is visible. Token +
 cookie jar are encrypted with an Android Keystore AES-GCM wrapper
