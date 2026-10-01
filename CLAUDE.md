@@ -35,6 +35,7 @@ single-hub, single-house deployment.
 | `telegram-bot/` | Standalone grammY bot controlling the house via the REST API | tsx/ESM |
 | `mobile-app/` | Thin Expo/React-Native Android WebView wrapper around the hub | Expo 51 |
 | `experiences/macos-app/` | Native macOS menu bar client (quick control panel + full web app window) | Swift / SwiftUI + AppKit |
+| `experiences/android-app/` | Native Android client: Device Controls, Quick Settings tiles, home-screen widget + in-app panel | Kotlin / Compose (APK) |
 
 The web app is the source of truth. The gateway, bot, and mobile app are all
 **optional** satellites that talk to it (or, for the gateway, that the app talks
@@ -557,6 +558,32 @@ signed in by handing the panel's token over as the `shc_session` cookie.
   `NSLocalNetworkUsageDescription` (macOS asks before LAN access).
 - Verify UI without screen-recording permission via `--snapshot out.png`
   (renders the panel offscreen; see the README for flags).
+
+## 11c. Android app (`experiences/android-app/`)
+
+Native Kotlin + Jetpack Compose (Material 3) app, minSdk 26 / target 36, built
+into a signed release APK by `scripts/build-apk.sh` (-> `build/Chandrabindu.apk`).
+The release keystore is generated on first build into the gitignored `keystore/`
+(random password in `keystore/keystore.properties`): **back it up**, or updates
+need an uninstall. Same API contract and rules as the Mac app (Bearer token from
+`/api/auth/login`, `/api/events` SSE with polling fallback, `/api/metadata`
+reachability, client-side blocks for app lock / setup gate / protected /
+super-protected / child lock / locked rooms). Surfaces that work without opening
+the app:
+- **Device Controls** (`controls/HomeControlsService.kt`, Android 11+): structure =
+  house, zone = room; protected, super-protected, `child_lock`, locked rooms and
+  Bluetooth are left out; fan levels as a stepped range.
+- **Quick Settings tiles** (`tiles/Tiles.kt`): "All off" (confirm dialog) + three
+  tiles bound to favourites.
+- **Glance widget** (`widget/HomeWidget.kt`): "N on" + one-tap favourites, "Away"
+  when unreachable (refreshes on network change, the 30-min system update, or tap).
+- In-app panel mirrors the Mac panel; "Open full app" = `WebAppActivity`
+  (WebView with the `shc_session` cookie, file chooser, downloads).
+`data/HomeRepository.kt` holds all state; live updates are reference-counted
+(app, controls panel, open tiles) and stop 15s after nothing is visible. Token +
+cookie jar are encrypted with an Android Keystore AES-GCM wrapper
+(`data/Storage.kt`). Cleartext HTTP to the LAN is allowed via
+`res/xml/network_security_config.xml`.
 
 ---
 

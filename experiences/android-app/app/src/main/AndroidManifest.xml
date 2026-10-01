@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <application
+        android:name=".App"
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.Chandrabindu"
+        tools:targetApi="36">
+
+        <activity
+            android:name=".ui.MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".ui.WebAppActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode"
+            android:label="@string/full_app" />
+
+        <!-- Android's built-in Device Controls (power menu / Quick Settings), API 30+ -->
+        <service
+            android:name=".controls.HomeControlsService"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_CONTROLS">
+            <intent-filter>
+                <action android:name="android.service.controls.ControlsProviderService" />
+            </intent-filter>
+        </service>
+
+        <!-- Quick Settings tiles -->
+        <service
+            android:name=".tiles.AllOffTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_power"
+            android:label="@string/tile_all_off"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+        <service
+            android:name=".tiles.Favourite1TileService"
+            android:exported="true"
+            android:icon="@drawable/ic_star"
+            android:label="@string/tile_fav_1"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+        <service
+            android:name=".tiles.Favourite2TileService"
+            android:exported="true"
+            android:icon="@drawable/ic_star"
+            android:label="@string/tile_fav_2"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+        <service
+            android:name=".tiles.Favourite3TileService"
+            android:exported="true"
+            android:icon="@drawable/ic_star"
+            android:label="@string/tile_fav_3"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <!-- Home-screen widget (Jetpack Glance) -->
+        <receiver
+            android:name=".widget.HomeWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/home_widget_info" />
+        </receiver>
+    </application>
+</manifest>

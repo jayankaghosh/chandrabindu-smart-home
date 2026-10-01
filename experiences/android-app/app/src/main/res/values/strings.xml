@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Chandrabindu</string>
+    <string name="full_app">Chandrabindu (full app)</string>
+    <string name="tile_all_off">All off</string>
+    <string name="tile_fav_1">Favourite 1</string>
+    <string name="tile_fav_2">Favourite 2</string>
+    <string name="tile_fav_3">Favourite 3</string>
+    <string name="widget_name">Chandrabindu</string>
+    <string name="widget_description">Switches on, plus your favourites as one-tap toggles</string>
+</resources>
