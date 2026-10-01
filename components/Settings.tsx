@@ -24,6 +24,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   Mic,
+  Smartphone,
 } from "lucide-react";
 import { REGIONS } from "@/lib/regions";
 import ManualDeviceForm from "./ManualDeviceForm";
@@ -33,6 +34,7 @@ import DevicePairing from "./DevicePairing";
 import GatewayControl from "./GatewayControl";
 import ThemeSelect from "./ThemeSelect";
 import SuperProtectedSettings from "./SuperProtectedSettings";
+import HomeKitSettings from "./HomeKitSettings";
 
 // Realtime voice options for the Settings dropdowns.
 const REALTIME_MODELS = [
@@ -567,6 +569,11 @@ export default function Settings({ isAdmin }: { isAdmin: boolean }) {
         {/* Super-protected switch (the lifeline that powers internet / router) */}
         <Section icon={<ShieldCheck size={16} />} title="Main power switch">
           <SuperProtectedSettings />
+        </Section>
+
+        {/* Apple Home (HomeKit bridge in the device gateway) */}
+        <Section icon={<Smartphone size={16} />} title="Apple Home">
+          <HomeKitSettings />
         </Section>
 
         {/* Loop protection */}

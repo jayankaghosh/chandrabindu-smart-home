@@ -139,3 +139,43 @@ export async function gatewayCommand(id: string, commands: CommandRequest[]): Pr
     throw new Error(d?.error || `Gateway returned ${res.status}`);
   }
 }
+
+/** Apple Home bridge status as reported by the gateway. */
+export interface HomekitStatus {
+  enabled: boolean;
+  running: boolean;
+  paired: boolean;
+  setupCode: string | null;
+  setupURI: string | null;
+  port: number;
+  rooms: number;
+  controls: number;
+  routines: number;
+  error: string | null;
+}
+
+/** The gateway's HomeKit bridge status, or null if the gateway can't be reached. */
+export async function gatewayHomekitStatus(): Promise<HomekitStatus | null> {
+  if (!gatewayConfigured()) return null;
+  try {
+    const res = await gwFetch("/homekit");
+    if (!res.ok) return null;
+    return (await res.json()) as HomekitStatus;
+  } catch {
+    return null;
+  }
+}
+
+/** Forget every Apple Home pairing and generate a new setup code. */
+export async function gatewayHomekitReset(): Promise<HomekitStatus> {
+  if (!gatewayConfigured()) throw new Error("The device gateway is not configured (GATEWAY_URL is not set).");
+  let res: Response;
+  try {
+    res = await gwFetch("/homekit/reset", { method: "POST" });
+  } catch {
+    throw new Error("Couldn't reach the device gateway. Is it running?");
+  }
+  const d = await res.json().catch(() => ({}) as any);
+  if (!res.ok) throw new Error(d?.error || `Gateway returned ${res.status}`);
+  return d as HomekitStatus;
+}

@@ -111,6 +111,11 @@ CommonJS, no build step (`npm start` → `node src/index.js`). Files:
   logs `PROTECT_RESTORE` to the app's `logs/`. Cooldown + circuit breaker so it
   never fights a stuck device; watches `config.json` (live enable/disable). See §8.
 
+- `src/homekit.js` - **`HomeKitBridge`**: the Apple Home bridge (see §8). Uses
+  `src/model.js` (port of the app's `getModel()`: catalog + overrides + config
+  flags, so Home shows the user's names/rooms) and `src/actionlog.js` (writes
+  to the app's `logs/`).
+
 App-side glue: `lib/gateway.ts` (client), `app/api/events/route.ts` (SSE proxy
 to the browser), `app/api/gateway/route.ts` + `app/api/gateway/reinit/route.ts`
 (status + the Settings "Re-initialize" button).
@@ -129,6 +134,7 @@ to the browser), `app/api/gateway/route.ts` + `app/api/gateway/reinit/route.ts`
 | `suntimes.json` / `automationFired.json` | Cached daily sun times / per-trigger fired dates | `lib/sunTimes.ts`, `lib/automationScheduler.ts` |
 | `history/YYYY-MM-DD.jsonl` | Boolean on/off transitions `{deviceId,code,value,at}` for the Usage report | **gateway** `device-gateway/src/history.js` |
 | `screensaver/<id>.<ext>` | Admin-uploaded screensaver images | `/api/screensaver/images` |
+| `homekit/` | Apple Home bridge identity (`identity.json`: setup code, MAC-style id) + HAP pairing data (`persist/`). Included in backups so a restored hub stays paired | gateway `src/homekit.js` |
 | `routines.json` | Routines (named lists of actions) | web UI, `lib/store.ts` |
 | `favourites/<username>.json` | Per-user starred controls (`{deviceId, code}[]`) | `lib/favourites.ts` |
 | `insights/<days>d_<date>.json` | Cached LLM insight reports | `lib/insights.ts` |
@@ -337,6 +343,31 @@ real time when the gateway is up.
   `childLock`). It is also excluded from the "N on" counts and from the
   super-protected picker (it is a lock, not a switch), and Master on/off never
   touches it (else master-on would lock every panel).
+- **Apple Home / HomeKit bridge** (`device-gateway/src/homekit.js`, `/api/homekit`
+  + `/api/homekit/reset` (admin), `components/HomeKitSettings.tsx`, Settings >
+  Apple Home, `config.json#homekit.enabled`, default OFF): publishes the house to
+  the iPhone **Home app** with HAP-NodeJS, so every iPhone/iPad/Watch gets
+  Control Center, Lock Screen, widgets, StandBy and Siri with **nothing to
+  install** (works on the LAN without an Apple TV/HomePod; those only add
+  remote access/automations). Runs **inside the gateway**: state is read from the
+  live connection caches (offline panel = "No Response"), `change` events push
+  live, and every write goes through `gateway.command()` so the loop-guard lock
+  and super-protected refusal still apply; writes are also refused while the app
+  is locked or the setup gate is open, and logged as `COMMAND` (user "Apple Home").
+  - **Layout:** one bridged accessory **per room** (user assigns ~10 rooms once,
+    then optionally "Show as Separate Tiles"), each control a service named via
+    `ConfiguredName`; plus a "Routines" accessory with a momentary switch per
+    routine (runs `RuleEngine.runRoutine`, flips back off after 1s).
+  - **Mapping:** Boolean -> Lightbulb / Outlet / Fan / Switch by name keywords;
+    Integer -> Lightbulb + Brightness; numeric fan Enum ("0","25".."100") ->
+    Fanv2 Active + RotationSpeed stepped to the levels; other enums skipped.
+  - **Never exposed** (HomeKit has no admin role): protected, super-protected,
+    `child_lock`, password-locked rooms, Bluetooth devices.
+  - Watches config/catalog/overrides/routines and re-syncs (adds, removes, renames
+    services on the live bridge). Pairing: QR (generated server-side by `qrcode`
+    from `bridge.setupURI()`) + 8-digit code in Settings; Reset pairing removes it
+    from every Home and makes a new code. HAP port `HOMEKIT_PORT` (default 51826)
+    plus mDNS (5353/udp) must be reachable on the hub's LAN.
 - **Auto-restore protected controls** (superadmin toggle, default OFF):
   `config.json#autoRestoreProtected` (getter/setter in `lib/config.ts`, toggle
   API `/api/protected/auto-restore` GET/PUT admin-only, UI switch in Settings →
@@ -502,6 +533,7 @@ signed in by handing the panel's token over as the `shc_session` cookie.
 | `GATEWAY_URL` | app | Enables routing device I/O through the gateway. **Unset = direct path.** |
 | `GATEWAY_SECRET` | app + gateway | Shared secret for gateway HTTP/SSE |
 | `GATEWAY_PORT` / `GATEWAY_HOST` | gateway | Default 4000 / 127.0.0.1 |
+| `HOMEKIT_PORT` | gateway | Apple Home bridge (HAP) port, default 51826, bound on the LAN |
 | `HEARTBEAT_SECRET` | app | Optional heartbeat auth |
 | OpenAI Realtime key/model/voice | app | Voice mode — set in Settings → Voice, stored in `config.json#openaiRealtime` (no env var) |
 | `TELEGRAM_BOT_TOKEN`, … | bot | See `telegram-bot/README.md` |

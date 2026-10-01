@@ -13,6 +13,7 @@ const { ProtectedGuard } = require("./protect");
 const { GroupSyncEngine } = require("./groups");
 const { LoopGuard } = require("./loopguard");
 const history = require("./history");
+const { HomeKitBridge } = require("./homekit");
 
 const PORT = Number(process.env.GATEWAY_PORT || 4000);
 const HOST = process.env.GATEWAY_HOST || "127.0.0.1"; // localhost-only by default
@@ -37,6 +38,12 @@ groups.start();
 const loopGuard = new LoopGuard(gateway);
 loopGuard.start();
 
+// Apple Home bridge (opt-in in Settings): every iPhone controls the house from
+// the built-in Home app. Commands go through gateway.command(), so the lock and
+// super-protected rules apply here too.
+const homekit = new HomeKitBridge(gateway, { runRoutine: (id) => rules.runRoutine(id) });
+homekit.start();
+
 // Log changes to stdout so `journalctl`/pm2 logs show live activity, and record
 // Boolean on/off transitions to the usage-history store.
 gateway.on("change", (e) => {
@@ -46,12 +53,14 @@ gateway.on("change", (e) => {
 
 const server = createServer(gateway, {
   secret,
+  homekit,
   // Re-init rebuilds connections from a fresh catalog AND re-primes the rules.
   onReinit: () => {
     const health = gateway.reinit();
     rules.reload();
     groups.reload();
     loopGuard.reload();
+    homekit.scheduleSync(); // the set of reachable devices may have changed
     return health;
   },
 });
