@@ -34,6 +34,7 @@ single-hub, single-house deployment.
 | `device-gateway/` | Daemon owning one persistent LAN connection per device | Node (CommonJS) |
 | `telegram-bot/` | Standalone grammY bot controlling the house via the REST API | tsx/ESM |
 | `mobile-app/` | Thin Expo/React-Native Android WebView wrapper around the hub | Expo 51 |
+| `experiences/macos-app/` | Native macOS menu bar client (quick control panel + full web app window) | Swift / SwiftUI + AppKit |
 
 The web app is the source of truth. The gateway, bot, and mobile app are all
 **optional** satellites that talk to it (or, for the gateway, that the app talks
@@ -461,6 +462,35 @@ Thin Expo Android WebView wrapper. On launch it GETs `/api/metadata`, checks
 `name === "Chandrabindu Smart Home"`, then loads the hub in a WebView (else a
 "can't find your home server" error). Config in `mobile-app/config.ts`
 (`BASE_URL`, `EXPECTED_NAME`). `EXPECTED_NAME` must match `app/api/metadata/route.ts`.
+
+## 11b. macOS menu bar app (`experiences/macos-app/`)
+
+Native Swift package (SwiftUI views in an AppKit `NSStatusItem` + `NSPopover`,
+macOS 14+), built into `build/Chandrabindu.app` by `scripts/build-app.sh`
+(`--install` copies to `~/Applications`). Designed for minimal time and clicks:
+the status item shows the number of switches on, **⌃⌥H** (Carbon hotkey, no
+Accessibility permission) opens the panel with search focused (Return toggles
+the highlighted control or runs a routine), favourites and routines are one
+click, rooms expand inline with a one-click room-off, master all-off/on needs a
+confirm click. Anything heavier opens the full web app in a `WKWebView` window,
+signed in by handing the panel's token over as the `shc_session` cookie.
+
+- Auth: `POST /api/auth/login` returns `token` for native clients; it is sent as
+  `Authorization: Bearer` and kept in the login Keychain. Cookies stay enabled
+  because room unlocks live in the `shc_unlocks` cookie.
+- Live state: consumes `/api/events` (SSE); on 204 (no gateway) it polls
+  `/api/devices/[id]/status` only while the panel is open (20s), 4 at a time.
+- Reachability: `GET /api/metadata` must answer with the expected `name`,
+  else a friendly "Can't reach your home" (or "That isn't your home hub") screen;
+  re-checks on network change (`NWPathMonitor`), wake, and every 20s.
+- Mirrors web rules client-side (`AppState.block`): app lock, setup gate,
+  protected = admin-only + confirm, super-protected = "Always on", child lock as
+  a per-panel pill (admin), locked rooms ask for the password. The hub still
+  enforces all of it.
+- `Info.plist` allows plain HTTP to the LAN (ATS) and declares
+  `NSLocalNetworkUsageDescription` (macOS asks before LAN access).
+- Verify UI without screen-recording permission via `--snapshot out.png`
+  (renders the panel offscreen; see the README for flags).
 
 ---
 

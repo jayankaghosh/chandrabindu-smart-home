@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleIdentifier</key>
+	<string>com.chandrabindu.menubar</string>
+	<key>CFBundleName</key>
+	<string>Chandrabindu</string>
+	<key>CFBundleDisplayName</key>
+	<string>Chandrabindu</string>
+	<key>CFBundleExecutable</key>
+	<string>ChandrabinduBar</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<!-- Menu bar only: no Dock icon until the full-app window is opened. -->
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<!-- The hub serves plain HTTP on the home LAN (e.g. http://192.168.68.68). -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Chandrabindu connects to your home hub on your local network to control your lights and switches.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Voice mode in the full app listens to your commands.</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>Chandrabindu Smart Home</string>
+</dict>
+</plist>
