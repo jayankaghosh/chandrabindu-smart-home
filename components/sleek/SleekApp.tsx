@@ -19,6 +19,7 @@ import SleekRoomSwitcher from "./SleekRoomSwitcher";
 import SleekFavourites from "./SleekFavourites";
 import SleekRoutines from "./SleekRoutines";
 import SleekAutomations from "./SleekAutomations";
+import SleekShortcuts from "./SleekShortcuts";
 import SleekSwitchGroups from "./SleekSwitchGroups";
 import SleekUsage from "./SleekUsage";
 import SleekScreensaverSettings from "./SleekScreensaverSettings";
@@ -37,6 +38,7 @@ type Screen =
   | { k: "room"; roomId: string }
   | { k: "routines" }
   | { k: "automations" }
+  | { k: "shortcuts" }
   | { k: "switchGroups" }
   | { k: "usage" }
   | { k: "screensaver" }
@@ -44,7 +46,7 @@ type Screen =
   | { k: "voice" };
 
 const NAV_KEY = "sleek-nav";
-const SCREEN_KINDS = ["home", "favourites", "rooms", "room", "routines", "automations", "switchGroups", "usage", "screensaver", "insights", "voice"];
+const SCREEN_KINDS = ["home", "favourites", "rooms", "room", "routines", "automations", "shortcuts", "switchGroups", "usage", "screensaver", "insights", "voice"];
 
 // Restore the last-viewed navigation stack (so a refresh lands where you were).
 function loadNav(): Screen[] {
@@ -189,6 +191,8 @@ export default function SleekApp({ role, username }: { role: "admin" | "user"; u
               ? "Routines"
               : screen.k === "automations"
                 ? "Automations"
+                : screen.k === "shortcuts"
+                ? "Shortcuts"
                 : screen.k === "switchGroups"
                 ? "Switch Groups"
                 : screen.k === "usage"
@@ -342,6 +346,9 @@ export default function SleekApp({ role, username }: { role: "admin" | "user"; u
               )}
               {screen.k === "automations" && (
                 <SleekAutomations rooms={rooms ?? []} isAdmin={isAdmin} editMode={editMode} />
+              )}
+              {screen.k === "shortcuts" && (
+                <SleekShortcuts rooms={rooms ?? []} isAdmin={isAdmin} editMode={editMode} />
               )}
               {screen.k === "switchGroups" && (
                 <SleekSwitchGroups rooms={rooms ?? []} isAdmin={isAdmin} editMode={editMode} />

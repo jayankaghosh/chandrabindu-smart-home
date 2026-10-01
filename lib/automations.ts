@@ -33,7 +33,7 @@ function isAutomation(x: any): x is Automation {
 }
 
 /** Actions are either a device set {deviceId, code, value} or a run-routine {routineId}. */
-function cleanActions(raw: unknown): AutomationAction[] {
+export function cleanActions(raw: unknown): AutomationAction[] {
   if (!Array.isArray(raw)) return [];
   const out: AutomationAction[] = [];
   for (const a of raw as any[]) {

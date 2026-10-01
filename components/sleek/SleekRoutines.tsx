@@ -6,6 +6,7 @@ import { Play, Loader2, Check, Wand2, Plus, Pencil, Trash2, Copy } from "lucide-
 import type { EnrichedRoutine, Room } from "@/lib/types";
 import { gridContainer, gridItem } from "./motion";
 import SleekRoutineBuilder from "./SleekRoutineBuilder";
+import { ExportButton, ImportButton, Notice } from "./ItemTransfer";
 
 export default function SleekRoutines({
   rooms = [],
@@ -24,6 +25,7 @@ export default function SleekRoutines({
     { mode: "new" } | { mode: "edit" | "duplicate"; item: EnrichedRoutine } | null
   >(null);
   const canEdit = isAdmin && editMode;
+  const [notice, setNotice] = useState<{ text: string; ok: boolean } | null>(null);
 
   const load = useCallback(() => {
     fetch("/api/routines")
@@ -71,11 +73,21 @@ export default function SleekRoutines({
   return (
     <div className="space-y-4">
       {canEdit && (
-        <button onClick={() => setBuilder({ mode: "new" })} className="btn-primary">
-          <Plus size={16} />
-          New routine
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button onClick={() => setBuilder({ mode: "new" })} className="btn-primary">
+            <Plus size={16} />
+            New routine
+          </button>
+          <ImportButton
+            kind="routine"
+            onDone={(text, ok) => {
+              setNotice({ text, ok });
+              if (ok) load();
+            }}
+          />
+        </div>
       )}
+      {notice && <Notice text={notice.text} ok={notice.ok} onClose={() => setNotice(null)} />}
 
       {routines.length === 0 ? (
         <Center><Wand2 size={30} className="mb-2 opacity-60" />No routines yet</Center>
@@ -107,6 +119,7 @@ export default function SleekRoutines({
                     <button onClick={() => setBuilder({ mode: "duplicate", item: r })} aria-label={`Duplicate ${r.name}`} title="Duplicate" className="icon-btn h-12 w-12">
                       <Copy size={16} />
                     </button>
+                    <ExportButton kind="routine" id={r.id} name={r.name} />
                     <button onClick={() => del(r)} aria-label={`Delete ${r.name}`} className="icon-btn h-12 w-12 text-red-500">
                       <Trash2 size={16} />
                     </button>

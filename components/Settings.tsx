@@ -25,6 +25,7 @@ import {
   ShieldCheck,
   Mic,
   Smartphone,
+  Command,
 } from "lucide-react";
 import { REGIONS } from "@/lib/regions";
 import ManualDeviceForm from "./ManualDeviceForm";
@@ -35,6 +36,7 @@ import GatewayControl from "./GatewayControl";
 import ThemeSelect from "./ThemeSelect";
 import SuperProtectedSettings from "./SuperProtectedSettings";
 import HomeKitSettings from "./HomeKitSettings";
+import ShortcutTokenSettings from "./ShortcutTokenSettings";
 
 // Realtime voice options for the Settings dropdowns.
 const REALTIME_MODELS = [
@@ -574,6 +576,11 @@ export default function Settings({ isAdmin }: { isAdmin: boolean }) {
         {/* Apple Home (HomeKit bridge in the device gateway) */}
         <Section icon={<Smartphone size={16} />} title="Apple Home">
           <HomeKitSettings />
+        </Section>
+
+        {/* Shortcut API token (run API-enabled shortcuts by URL) */}
+        <Section icon={<Command size={16} />} title="Shortcut API">
+          <ShortcutTokenSettings />
         </Section>
 
         {/* Loop protection */}
