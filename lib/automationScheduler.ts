@@ -77,7 +77,8 @@ function triggerTarget(cond: AutomationCondition, sun: SunTimes | null): number 
   return null;
 }
 
-function guardMet(cond: DeviceCondition, values: Record<string, unknown>): boolean {
+/** Does a device guard hold for these live values? (Shared with lib/shortcuts.ts.) */
+export function guardMet(cond: DeviceCondition, values: Record<string, unknown>): boolean {
   const cur = values[cond.code];
   if (cur === undefined) return false;
   // Booleans: accept true/"true"/"on"/1 as "on".

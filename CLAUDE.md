@@ -126,11 +126,12 @@ to the browser), `app/api/gateway/route.ts` + `app/api/gateway/reinit/route.ts`
 
 | File / dir | Contents | Written by |
 |------------|----------|------------|
-| `config.json` | Admin `passwordHash`/`Salt`, auto-generated `sessionSecret`, `houseName`, `users[]` (standard users), room locks, Tuya creds, insights model, **protected controls**, **`superProtected`** (the lifeline switch, or `{none:true}`), `location` (lat/lng), app `locked`+`lockInfo`, `loopGuard` thresholds | onboarding, Settings, `lib/config.ts` (+ gateway `loopguard.js` writes `locked`) |
+| `config.json` | Admin `passwordHash`/`Salt`, auto-generated `sessionSecret`, `houseName`, `users[]` (standard users), room locks, Tuya creds, insights model, **protected controls**, **`superProtected`** (the lifeline switch, or `{none:true}`), `shortcutToken` (shortcut API secret), `location` (lat/lng), app `locked`+`lockInfo`, `loopGuard` thresholds | onboarding, Settings, `lib/config.ts` (+ gateway `loopguard.js` writes `locked`) |
 | `catalog.json` | Synced device catalog: `rooms[]` + `devices[]` (id, **key**, version, category, cloudName, functions with dpId/type/name/range) | cloud sync, `lib/store.ts` |
 | `overrides.json` | Local edits that survive re-sync: `deviceRoom`, `deviceName`, `roomName`, `controlName`, `extraRooms` | Settings/rename, `lib/store.ts` |
 | `automations.json` | `automations[]` (match all/any, conditions[] incl. time/sun triggers, actions[] incl. run-routine) | web UI, `lib/automations.ts` |
 | `switchGroups.json` | `groups[]` (name + member switches kept in sync) | web UI, `lib/switchGroups.ts` |
+| `shortcuts.json` | `shortcuts[]` (manually run IF/THEN: match, conditions incl. group + time window, actions, `apiEnabled`) | web UI, `lib/shortcuts.ts` |
 | `suntimes.json` / `automationFired.json` | Cached daily sun times / per-trigger fired dates | `lib/sunTimes.ts`, `lib/automationScheduler.ts` |
 | `history/YYYY-MM-DD.jsonl` | Boolean on/off transitions `{deviceId,code,value,at}` for the Usage report | **gateway** `device-gateway/src/history.js` |
 | `screensaver/<id>.<ext>` | Admin-uploaded screensaver images | `/api/screensaver/images` |
@@ -249,6 +250,36 @@ real time when the gateway is up.
   value differs from the target (the fan-out self-terminates), and skips protected
   members. Sleek-only authoring (admin + Edit Mode), a home section + `switchGroups`
   screen.
+- **Shortcuts** (`lib/shortcuts.ts`, `data/shortcuts.json`, `/api/shortcuts`,
+  `components/sleek/SleekShortcuts.tsx`, Sleek "Shortcuts" section): IF/THEN rules
+  that **run only when triggered**, never in the background. `runShortcut()` checks
+  the IF against live state (`getStatusLocal`) and, if it holds (match all/any; no
+  conditions = always), runs the THEN like an automation (`setCommandLocal`, skips
+  protected, run-routine via `runRoutineActions`; app lock -> 423). Conditions
+  (`ShortcutCondition` in `lib/types.ts`): `device` (shares `guardMet` with the
+  scheduler), **`group`** ("all lights / all switches in the house or a room are
+  off" or "any is on"; lights = light-named Booleans (`controlKind`) + dimmers;
+  protected and `child_lock` never count; unreachable panels are ignored and
+  reported) and **`window`** (between two points, each a clock time or
+  sunrise/sunset ± min, may wrap midnight; sun points need the Settings location).
+  Built with `SleekAutomationBuilder mode="shortcut"`. Run from the card (any user)
+  via `POST /api/shortcuts/[id]/run`, or, when the shortcut's **`apiEnabled`** is on,
+  with no session via **`GET /api/shortcuts/[id]/run?shortcut_token=…`** (for an
+  iPhone Shortcut on "joined home Wi-Fi"). The token is one shared secret in
+  `config.json#shortcutToken`, managed in Settings > Shortcut API
+  (`/api/shortcuts/token` GET/POST regenerate/DELETE, admin); constant-time check,
+  failures rate-limited; it appears in proxy access logs, so it is regenerable.
+  Response JSON: `{ran, conditionsMet, done, failed, skippedProtected, conditions[], message}`.
+- **Item export / import** (`lib/itemTransfer.ts`, `/api/items/export?kind&id`,
+  `/api/items/import?kind`, `components/sleek/ItemTransfer.tsx`): any single
+  routine / automation / shortcut downloads as `<timestamp>.cnbdu`, a JSON envelope
+  `{format:"cnbdu-item", kind, item, routines?}` (distinct from the full-backup
+  `format:"cnbdu"`; each import/restore rejects the other with a pointer).
+  Automations and shortcuts bundle the routines they run; import reuses a routine
+  with the same id or recreates it from the bundle. Imports always create a NEW
+  record (name gets " (imported)" if taken); switches/rooms missing on this hub
+  are dropped and listed as warnings. Admin + Edit Mode (Export icon per card,
+  Import next to "New …").
 - **Loop-protection kill switch / app lock** (`config.json#locked`+`lockInfo`,
   `device-gateway/src/loopguard.js`, `components/LockedOverlay.tsx`,
   `/api/lock`, `/api/loop-guard`): the gateway `LoopGuard` counts real toggles per
@@ -446,6 +477,10 @@ Two full UIs, per-device selectable in Settings (Appearance). Persisted in
   - **Routines authoring** — `SleekRoutines` New/Edit/Delete + `SleekRoutineBuilder`.
   - **Automations authoring** — `SleekAutomations` New/Edit/Delete + `SleekAutomationBuilder`
     (IF match all/any → THEN); keeps the existing view + enable/disable.
+  - **Shortcuts authoring** - `SleekShortcuts` New/Edit/Duplicate/Export/Delete +
+    the same builder with `mode="shortcut"` (Device / All-any group / Time window
+    conditions, "Accessible via API" toggle); the card shows the copyable run URL
+    (copy falls back to `execCommand` because `navigator.clipboard` needs HTTPS).
   - **Cloud Sync** button in the home header (`POST /api/sync`).
   - **`SleekActionPicker`** is the shared big-button device→control→value picker
     reused by both builders (and the switch-group member picker mirrors it). It

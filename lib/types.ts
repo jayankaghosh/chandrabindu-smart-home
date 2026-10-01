@@ -268,3 +268,43 @@ export interface Automation {
   conditions: AutomationCondition[];
   actions: AutomationAction[];
 }
+
+// ── Shortcuts (manually triggered IF/THEN) ───────────────────────────────────
+// Like an automation, but nothing listens: a shortcut runs only when triggered
+// (a button in the UI, or its token-protected URL when API access is on). On a
+// run the IF is checked against live state; if it holds, the THEN runs.
+
+/** "All lights / all switches in the house or a room are off" (or any is on). */
+export interface GroupCondition {
+  type: "group";
+  /** "house" or a room id. */
+  scope: string;
+  /** lights = light-named switches + dimmers; switches = every plain on/off switch. */
+  kind: "lights" | "switches";
+  state: "allOff" | "anyOn";
+}
+
+/** A point in the day: a clock time, or sunrise/sunset ± minutes. */
+export type WindowPoint =
+  | { kind: "time"; time: string } // "HH:MM"
+  | { kind: "sun"; event: "sunrise" | "sunset"; offsetMin?: number };
+
+/** True while the current time is between `from` and `to` (may wrap midnight). */
+export interface TimeWindowCondition {
+  type: "window";
+  from: WindowPoint;
+  to: WindowPoint;
+}
+
+export type ShortcutCondition = DeviceCondition | GroupCondition | TimeWindowCondition;
+
+export interface Shortcut {
+  id: string;
+  name: string;
+  /** "all" = every condition must hold (AND); "any" = at least one (OR). No conditions = always. */
+  match: "all" | "any";
+  conditions: ShortcutCondition[];
+  actions: AutomationAction[];
+  /** When true, it can also be run via /api/shortcuts/<id>/run?shortcut_token=… */
+  apiEnabled: boolean;
+}

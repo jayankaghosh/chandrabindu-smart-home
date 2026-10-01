@@ -2,9 +2,28 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Loader2, Check, X, Trash2, Pencil, ArrowRight, Clock, Sunrise, Plus, Sparkles } from "lucide-react";
-import type { Automation, AutomationAction, AutomationCondition, Room } from "@/lib/types";
-import { isRoutineAction, isTriggerCondition } from "@/lib/types";
+import { Loader2, Check, X, Trash2, Pencil, ArrowRight, Clock, Sunrise, Plus, Sparkles, Layers, CalendarClock } from "lucide-react";
+import type {
+  Automation,
+  AutomationAction,
+  AutomationCondition,
+  DeviceCondition,
+  GroupCondition,
+  Room,
+  Shortcut,
+  ShortcutCondition,
+  WindowPoint,
+} from "@/lib/types";
+import { isRoutineAction } from "@/lib/types";
+import { valueLabel } from "./labels";
+import SleekActionPicker from "./SleekActionPicker";
+
+type AnyCondition = AutomationCondition | ShortcutCondition;
+type CondKind = "device" | "time" | "sun" | "group" | "window";
+
+function isDeviceCondition(c: AnyCondition | undefined): c is DeviceCondition {
+  return !!c && (c.type === undefined || c.type === "device");
+}
 
 /** Replace the item at `idx` (edit in place), or append when `idx` is null. */
 function replaceOrAppend<T>(arr: T[], idx: number | null, item: T): T[] {
@@ -16,8 +35,6 @@ function adjustAfterDelete(idx: number | null, removed: number): number | null {
   if (idx === removed) return null;
   return idx > removed ? idx - 1 : idx;
 }
-import { valueLabel } from "./labels";
-import SleekActionPicker from "./SleekActionPicker";
 
 interface Clause {
   deviceId: string;
@@ -25,12 +42,26 @@ interface Clause {
   value: unknown;
 }
 
+function pointLabel(p: WindowPoint): string {
+  if (p.kind === "time") return p.time;
+  const off = p.offsetMin ?? 0;
+  return `${p.event}${off === 0 ? "" : off > 0 ? ` +${off}m` : ` ${off}m`}`;
+}
+
 /** Human label for a condition of any type. */
 function describeCondition(
-  c: AutomationCondition,
+  c: AnyCondition,
   byId: Map<string, Room["devices"][number]>,
+  roomName: (id: string) => string,
 ): string {
   if (c.type === "time") return `At ${c.time}`;
+  if (c.type === "window") return `Between ${pointLabel(c.from)} and ${pointLabel(c.to)}`;
+  if (c.type === "group") {
+    const where = c.scope === "house" ? "the house" : roomName(c.scope);
+    return c.state === "allOff"
+      ? `All ${c.kind} in ${where} are off`
+      : `Any ${c.kind === "lights" ? "light" : "switch"} in ${where} is on`;
+  }
   if (c.type === "sun") {
     const off = c.offsetMin ?? 0;
     const suffix = off === 0 ? "" : off > 0 ? ` +${off} min` : ` ${off} min`;
@@ -41,38 +72,90 @@ function describeCondition(
   return `${d?.name ?? "?"} · ${f?.name ?? c.code} = ${f ? valueLabel(f, c.value) : String(c.value)}`;
 }
 
-// Sleek-native automation builder, shown as a full-screen modal overlay.
-// IF (match all/any) a set of conditions → THEN a set of actions. Both clause
-// lists are composed with the shared SleekActionPicker.
+/** A window end point: a clock time, or sunrise/sunset with an offset. */
+function PointEditor({ value, onChange }: { value: WindowPoint; onChange: (p: WindowPoint) => void }) {
+  const selected = value.kind === "time" ? "time" : value.event;
+  return (
+    <>
+      <select
+        value={selected}
+        onChange={(e) => {
+          const v = e.target.value;
+          onChange(
+            v === "time"
+              ? { kind: "time", time: value.kind === "time" ? value.time : "18:00" }
+              : { kind: "sun", event: v as "sunrise" | "sunset", offsetMin: value.kind === "sun" ? value.offsetMin ?? 0 : 0 },
+          );
+        }}
+        className="field !py-2"
+      >
+        <option value="time">a time</option>
+        <option value="sunset">sunset</option>
+        <option value="sunrise">sunrise</option>
+      </select>
+      {value.kind === "time" ? (
+        <input type="time" value={value.time} onChange={(e) => onChange({ kind: "time", time: e.target.value })} className="field !py-2 w-32" />
+      ) : (
+        <span className="inline-flex items-center gap-1.5">
+          <input
+            type="number"
+            value={value.offsetMin ?? 0}
+            onChange={(e) => onChange({ ...value, offsetMin: Math.round(Number(e.target.value) || 0) })}
+            className="field !py-2 w-24"
+            placeholder="± min"
+            title="Minutes before (-) or after (+)"
+          />
+          <span className="text-xs text-slate-500 dark:text-slate-400">min (+ after, - before)</span>
+        </span>
+      )}
+    </>
+  );
+}
+
+// Sleek-native IF/THEN builder, shown as a full-screen modal overlay. Used for
+// automations (device/time/sun conditions; time and sun are triggers) and, with
+// mode="shortcut", for shortcuts (run on demand: device, all/any group and
+// time-window conditions, plus the API-access toggle). Both clause lists are
+// composed with the shared SleekActionPicker.
 export default function SleekAutomationBuilder({
   rooms,
   initial,
   duplicate = false,
+  mode = "automation",
   onSaved,
   onCancel,
 }: {
   rooms: Room[];
-  initial?: Automation;
-  /** Seed from `initial` but save as a NEW automation (not overwrite the original). */
+  initial?: Automation | Shortcut;
+  /** Seed from `initial` but save as a NEW record (not overwrite the original). */
   duplicate?: boolean;
+  mode?: "automation" | "shortcut";
   onSaved: () => void;
   onCancel: () => void;
 }) {
+  const noun = mode === "shortcut" ? "shortcut" : "automation";
   const isEdit = !!initial && !duplicate;
   const [name, setName] = useState(initial ? (duplicate ? `Copy of ${initial.name}` : initial.name) : "");
   const [match, setMatch] = useState<"all" | "any">(initial?.match ?? "all");
-  const [conditions, setConditions] = useState<AutomationCondition[]>(initial?.conditions ?? []);
+  const [conditions, setConditions] = useState<AnyCondition[]>(initial?.conditions ?? []);
+  const [apiEnabled, setApiEnabled] = useState(Boolean(initial && "apiEnabled" in initial && initial.apiEnabled));
   const [actions, setActions] = useState<AutomationAction[]>(initial?.actions ?? []);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Which kind of condition the user is adding, plus the time/sun inputs, plus
   // the index of the condition being edited in place (null = adding new).
-  const [condKind, setCondKind] = useState<"device" | "time" | "sun">("device");
+  const [condKind, setCondKind] = useState<CondKind>("device");
   const [timeVal, setTimeVal] = useState("18:00");
   const [sunEvent, setSunEvent] = useState<"sunrise" | "sunset">("sunset");
   const [sunOffset, setSunOffset] = useState("0");
   const [editingCondIndex, setEditingCondIndex] = useState<number | null>(null);
+  // Shortcut-only condition inputs: all/any group, and a time window.
+  const [groupScope, setGroupScope] = useState("house");
+  const [groupKind, setGroupKind] = useState<GroupCondition["kind"]>("lights");
+  const [groupState, setGroupState] = useState<GroupCondition["state"]>("allOff");
+  const [winFrom, setWinFrom] = useState<WindowPoint>({ kind: "sun", event: "sunset", offsetMin: 0 });
+  const [winTo, setWinTo] = useState<WindowPoint>({ kind: "sun", event: "sunrise", offsetMin: 0 });
 
   // THEN action kind (device set vs run a routine), the edited index, and the
   // routine list.
@@ -93,6 +176,7 @@ export default function SleekAutomationBuilder({
   const routineName = (id: string) => routines.find((r) => r.id === id)?.name ?? "routine";
 
   const byId = useMemo(() => new Map(rooms.flatMap((r) => r.devices).map((d) => [d.id, d])), [rooms]);
+  const roomName = (id: string) => rooms.find((r) => r.id === id)?.name ?? "a removed room";
   const describe = (c: Clause) => {
     const d = byId.get(c.deviceId);
     const f = d?.functions.find((x) => x.code === c.code);
@@ -113,6 +197,15 @@ export default function SleekAutomationBuilder({
       setCondKind("sun");
       setSunEvent(c.event);
       setSunOffset(String(c.offsetMin ?? 0));
+    } else if (c.type === "group") {
+      setCondKind("group");
+      setGroupScope(c.scope);
+      setGroupKind(c.kind);
+      setGroupState(c.state);
+    } else if (c.type === "window") {
+      setCondKind("window");
+      setWinFrom(c.from);
+      setWinTo(c.to);
     } else {
       setCondKind("device"); // device picker seeds from `deviceCondInitial`
     }
@@ -129,7 +222,7 @@ export default function SleekAutomationBuilder({
     setEditingActIndex(i);
   }
   // Switching the composer kind abandons any in-place edit of the other kind.
-  function chooseCondKind(k: "device" | "time" | "sun") {
+  function chooseCondKind(k: CondKind) {
     setCondKind(k);
     setEditingCondIndex(null);
   }
@@ -139,10 +232,9 @@ export default function SleekAutomationBuilder({
   }
 
   const editingCond = editingCondIndex !== null ? conditions[editingCondIndex] : undefined;
-  const deviceCondInitial =
-    editingCond && !isTriggerCondition(editingCond)
-      ? { deviceId: editingCond.deviceId, code: editingCond.code, value: editingCond.value }
-      : undefined;
+  const deviceCondInitial = isDeviceCondition(editingCond)
+    ? { deviceId: editingCond.deviceId, code: editingCond.code, value: editingCond.value }
+    : undefined;
   const editingAct = editingActIndex !== null ? actions[editingActIndex] : undefined;
   const deviceActInitial =
     editingAct && !isRoutineAction(editingAct)
@@ -151,19 +243,20 @@ export default function SleekAutomationBuilder({
 
   async function save() {
     setError(null);
-    if (!name.trim()) return setError("Give the automation a name");
-    if (conditions.length === 0) return setError("Add at least one IF condition");
+    if (!name.trim()) return setError(`Give the ${noun} a name`);
+    if (mode === "automation" && conditions.length === 0) return setError("Add at least one IF condition");
     if (actions.length === 0) return setError("Add at least one THEN action");
     setSaving(true);
     try {
-      const url = isEdit ? `/api/automations/${initial!.id}` : "/api/automations";
+      const base = mode === "shortcut" ? "/api/shortcuts" : "/api/automations";
+      const url = isEdit ? `${base}/${initial!.id}` : base;
       const res = await fetch(url, {
         method: isEdit ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), match, conditions, actions }),
+        body: JSON.stringify({ name: name.trim(), match, conditions, actions, ...(mode === "shortcut" ? { apiEnabled } : {}) }),
       });
       const d = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(d.error || "Couldn't save automation");
+      if (!res.ok) throw new Error(d.error || `Couldn't save ${noun}`);
       onSaved();
     } catch (e) {
       setError((e as Error).message);
@@ -182,7 +275,7 @@ export default function SleekAutomationBuilder({
       >
         <div className="mb-4 flex items-center justify-between gap-3">
           <h2 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-100">
-            {isEdit ? "Edit automation" : duplicate ? "Duplicate automation" : "New automation"}
+            {isEdit ? `Edit ${noun}` : duplicate ? `Duplicate ${noun}` : `New ${noun}`}
           </h2>
           <button onClick={onCancel} aria-label="Close" className="icon-btn">
             <X size={16} />
@@ -190,9 +283,35 @@ export default function SleekAutomationBuilder({
         </div>
 
         <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
-          Automation name
+          {mode === "shortcut" ? "Shortcut name" : "Automation name"}
         </label>
-        <input value={name} onChange={(e) => setName(e.target.value)} autoFocus placeholder="e.g. Evening lights" className="field mb-5" />
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          autoFocus
+          placeholder={mode === "shortcut" ? "e.g. Welcome home" : "e.g. Evening lights"}
+          className="field mb-5"
+        />
+
+        {mode === "shortcut" && (
+          <div className="mb-5 flex items-center justify-between gap-3 rounded-2xl border border-white/60 bg-white/50 px-3.5 py-3 dark:border-white/10 dark:bg-white/[0.06]">
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold text-slate-800 dark:text-slate-100">Accessible via API</span>
+              <span className="block text-xs text-slate-500 dark:text-slate-400">
+                Run it from a URL with the shortcut token, e.g. from an iPhone Shortcut.
+              </span>
+            </span>
+            <button
+              onClick={() => setApiEnabled((v) => !v)}
+              role="switch"
+              aria-checked={apiEnabled}
+              aria-label="Accessible via API"
+              className={`relative h-7 w-12 shrink-0 rounded-full transition ${apiEnabled ? "bg-emerald-500" : "bg-slate-300 dark:bg-slate-600"}`}
+            >
+              <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${apiEnabled ? "left-6" : "left-1"}`} />
+            </button>
+          </div>
+        )}
 
         {/* IF */}
         <div className="mb-2 flex items-center gap-2">
@@ -221,7 +340,7 @@ export default function SleekAutomationBuilder({
                     : "border-white/60 bg-white/50 dark:border-white/10 dark:bg-white/[0.06]"
                 }`}
               >
-                <span className="min-w-0 truncate text-slate-700 dark:text-slate-200">{describeCondition(c, byId)}</span>
+                <span className="min-w-0 truncate text-slate-700 dark:text-slate-200">{describeCondition(c, byId, roomName)}</span>
                 <div className="flex shrink-0 items-center gap-1">
                   <button onClick={() => editCondition(i)} aria-label="Edit" className="text-slate-400 hover:text-brand-500">
                     <Pencil size={15} />
@@ -242,13 +361,24 @@ export default function SleekAutomationBuilder({
           </ul>
         )}
 
+        {mode === "shortcut" && conditions.length === 0 && (
+          <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">No conditions: it runs every time it&apos;s triggered.</p>
+        )}
+
         {/* Condition-kind selector */}
         <div className="mb-2 inline-flex rounded-xl border border-white/60 bg-white/40 p-0.5 text-xs dark:border-white/10 dark:bg-white/[0.05]">
-          {([
-            ["device", "Device"],
-            ["time", "Time"],
-            ["sun", "Sun"],
-          ] as const).map(([k, lbl]) => (
+          {(mode === "shortcut"
+            ? ([
+                ["device", "Device"],
+                ["group", "All / any"],
+                ["window", "Time window"],
+              ] as const)
+            : ([
+                ["device", "Device"],
+                ["time", "Time"],
+                ["sun", "Sun"],
+              ] as const)
+          ).map(([k, lbl]) => (
             <button
               key={k}
               onClick={() => chooseCondKind(k)}
@@ -270,6 +400,64 @@ export default function SleekAutomationBuilder({
               setEditingCondIndex(null);
             }}
           />
+        )}
+        {condKind === "group" && (
+          <div className="flex flex-wrap items-center gap-2">
+            <Layers size={16} className="text-slate-400" />
+            <select value={groupState} onChange={(e) => setGroupState(e.target.value as GroupCondition["state"])} className="field !py-2">
+              <option value="allOff">All</option>
+              <option value="anyOn">Any</option>
+            </select>
+            <select value={groupKind} onChange={(e) => setGroupKind(e.target.value as GroupCondition["kind"])} className="field !py-2">
+              <option value="lights">lights</option>
+              <option value="switches">switches</option>
+            </select>
+            <span className="text-sm text-slate-500 dark:text-slate-400">in</span>
+            <select value={groupScope} onChange={(e) => setGroupScope(e.target.value)} className="field !py-2 flex-1">
+              <option value="house">the whole house</option>
+              {rooms.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name}
+                </option>
+              ))}
+            </select>
+            <span className="text-sm text-slate-500 dark:text-slate-400">{groupState === "allOff" ? "are off" : "is on"}</span>
+            <button
+              onClick={() => {
+                setConditions((x) => replaceOrAppend(x, editingCondIndex, { type: "group", scope: groupScope, kind: groupKind, state: groupState }));
+                setEditingCondIndex(null);
+              }}
+              className="btn-primary !px-3"
+            >
+              <Plus size={15} /> {editingCondIndex !== null ? "Update" : "Add"}
+            </button>
+          </div>
+        )}
+        {condKind === "window" && (
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <CalendarClock size={16} className="text-slate-400" />
+              <span className="text-sm text-slate-500 dark:text-slate-400">Between</span>
+              <PointEditor value={winFrom} onChange={setWinFrom} />
+            </div>
+            <div className="flex flex-wrap items-center gap-2 pl-6">
+              <span className="text-sm text-slate-500 dark:text-slate-400">and</span>
+              <PointEditor value={winTo} onChange={setWinTo} />
+              <button
+                onClick={() => {
+                  if ((winFrom.kind === "time" && !winFrom.time) || (winTo.kind === "time" && !winTo.time)) return;
+                  setConditions((x) => replaceOrAppend(x, editingCondIndex, { type: "window", from: winFrom, to: winTo }));
+                  setEditingCondIndex(null);
+                }}
+                className="btn-primary !px-3"
+              >
+                <Plus size={15} /> {editingCondIndex !== null ? "Update" : "Add"}
+              </button>
+            </div>
+            <p className="text-xs text-slate-400 dark:text-slate-500">
+              Sunrise and sunset use the location in Settings. A window can cross midnight.
+            </p>
+          </div>
         )}
         {condKind === "time" && (
           <div className="flex items-center gap-2">
@@ -434,7 +622,7 @@ export default function SleekAutomationBuilder({
           </button>
           <button onClick={save} disabled={saving} className="btn-primary">
             {saving ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
-            {isEdit ? "Save changes" : "Save automation"}
+            {isEdit ? "Save changes" : `Save ${noun}`}
           </button>
         </div>
       </motion.div>

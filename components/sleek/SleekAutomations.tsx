@@ -6,6 +6,7 @@ import { Zap, Loader2, Power, ArrowRight, Plus, Pencil, Trash2, Copy } from "luc
 import type { Automation, Room } from "@/lib/types";
 import { gridContainer, gridItem } from "./motion";
 import SleekAutomationBuilder from "./SleekAutomationBuilder";
+import { ExportButton, ImportButton, Notice } from "./ItemTransfer";
 
 // View + enable/disable for everyone (admin acts); create/edit/delete in Edit Mode.
 export default function SleekAutomations({
@@ -23,6 +24,7 @@ export default function SleekAutomations({
     { mode: "new" } | { mode: "edit" | "duplicate"; item: Automation } | null
   >(null);
   const canEdit = isAdmin && editMode;
+  const [notice, setNotice] = useState<{ text: string; ok: boolean } | null>(null);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/automations");
@@ -64,11 +66,21 @@ export default function SleekAutomations({
   return (
     <div className="space-y-4">
       {canEdit && (
-        <button onClick={() => setBuilder({ mode: "new" })} className="btn-primary">
-          <Plus size={16} />
-          New automation
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button onClick={() => setBuilder({ mode: "new" })} className="btn-primary">
+            <Plus size={16} />
+            New automation
+          </button>
+          <ImportButton
+            kind="automation"
+            onDone={(text, ok) => {
+              setNotice({ text, ok });
+              if (ok) load();
+            }}
+          />
+        </div>
       )}
+      {notice && <Notice text={notice.text} ok={notice.ok} onClose={() => setNotice(null)} />}
 
       {items.length === 0 ? (
         <Center><Zap size={30} className="mb-2 opacity-60" />No automations yet</Center>
@@ -110,6 +122,7 @@ export default function SleekAutomations({
                   <button onClick={() => setBuilder({ mode: "duplicate", item: a })} aria-label={`Duplicate ${a.name}`} title="Duplicate" className="icon-btn h-10 w-10">
                     <Copy size={15} />
                   </button>
+                  <ExportButton kind="automation" id={a.id} name={a.name} className="icon-btn h-10 w-10" />
                   <button onClick={() => del(a)} aria-label={`Delete ${a.name}`} className="icon-btn h-10 w-10 text-red-500">
                     <Trash2 size={15} />
                   </button>

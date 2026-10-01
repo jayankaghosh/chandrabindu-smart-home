@@ -17,6 +17,7 @@ const FILES = [
   "routines.json",
   "automations.json",
   "switchGroups.json",
+  "shortcuts.json",
 ];
 
 // Directories of per-user JSON files to include recursively.
@@ -71,6 +72,9 @@ export function buildBackup(): BackupBundle {
 /** Restore a bundle to disk. Overwrites the included files. Returns count. */
 export function restoreBackup(bundle: unknown): { restored: number; catalogChanged: boolean } {
   const b = bundle as BackupBundle;
+  if ((bundle as { format?: string } | null)?.format === "cnbdu-item") {
+    throw new Error("This file is a single exported routine, automation or shortcut. Import it from that section instead.");
+  }
   if (!b || b.format !== "cnbdu" || !b.files || typeof b.files !== "object") {
     throw new Error("Not a valid .cnbdu backup file");
   }

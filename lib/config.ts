@@ -81,6 +81,8 @@ interface AppConfig {
   screensaver?: { enabled: boolean; idleSec: number; imageSec?: number; images: string[] };
   /** Apple Home (HomeKit) bridge, run by the device gateway. Off by default. */
   homekit?: { enabled: boolean };
+  /** Secret for running API-enabled shortcuts via ?shortcut_token=… (unset = off). */
+  shortcutToken?: string;
 }
 
 /** Public (no secret) view of a user, for the settings UI. */
@@ -154,6 +156,7 @@ export function setPassword(password: string): void {
     loopGuard: existing?.loopGuard,
     screensaver: existing?.screensaver,
     homekit: existing?.homekit,
+    shortcutToken: existing?.shortcutToken,
   };
   write(config);
 }
@@ -503,6 +506,40 @@ export function setHomekitEnabled(enabled: boolean): void {
   const config = read();
   if (!config) throw new Error("App is not onboarded yet");
   write({ ...config, homekit: { enabled } });
+}
+
+// ── Shortcut API token ───────────────────────────────────────────────────────
+
+/** The token API-enabled shortcuts accept in ?shortcut_token=…, or null if unset. */
+export function getShortcutToken(): string | null {
+  const t = read()?.shortcutToken;
+  return typeof t === "string" && t.length >= 16 ? t : null;
+}
+
+/** Make a new random token (old shortcut URLs stop working). Returns it. */
+export function regenerateShortcutToken(): string {
+  const config = read();
+  if (!config) throw new Error("App is not onboarded yet");
+  const token = crypto.randomBytes(24).toString("base64url");
+  write({ ...config, shortcutToken: token });
+  return token;
+}
+
+/** Remove the token, which turns off running shortcuts by URL entirely. */
+export function clearShortcutToken(): void {
+  const config = read();
+  if (!config) throw new Error("App is not onboarded yet");
+  const { shortcutToken: _drop, ...rest } = config;
+  write(rest);
+}
+
+/** Constant-time check of a presented token. */
+export function verifyShortcutToken(presented: string): boolean {
+  const expected = getShortcutToken();
+  if (!expected || !presented) return false;
+  const a = Buffer.from(presented);
+  const b = Buffer.from(expected);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
 // ── Screensaver ──────────────────────────────────────────────────────────────
