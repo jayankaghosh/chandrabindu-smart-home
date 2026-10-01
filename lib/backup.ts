@@ -20,7 +20,9 @@ const FILES = [
 ];
 
 // Directories of per-user JSON files to include recursively.
-const DIRS = ["favourites", "chatbot"];
+// homekit/ holds the Apple Home bridge identity + pairings, so a restored hub
+// stays paired with every iPhone.
+const DIRS = ["favourites", "chatbot", "homekit"];
 
 export interface BackupBundle {
   format: "cnbdu";

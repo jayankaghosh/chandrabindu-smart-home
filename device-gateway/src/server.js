@@ -5,7 +5,7 @@
 
 const http = require("http");
 
-function createServer(gateway, { secret, onReinit } = {}) {
+function createServer(gateway, { secret, onReinit, homekit } = {}) {
   const sseClients = new Set();
 
   function broadcast(event, payload) {
@@ -65,6 +65,21 @@ function createServer(gateway, { secret, onReinit } = {}) {
     if (req.method === "POST" && url.pathname === "/reinit") {
       const health = onReinit ? onReinit() : gateway.reinit();
       return json(res, 200, { ok: true, ...health });
+    }
+
+    // Apple Home bridge: status (setup code, QR payload, paired) and pairing reset.
+    if (url.pathname === "/homekit" && req.method === "GET") {
+      if (!homekit) return json(res, 404, { error: "HomeKit bridge not available" });
+      return json(res, 200, homekit.status());
+    }
+    if (url.pathname === "/homekit/reset" && req.method === "POST") {
+      if (!homekit) return json(res, 404, { error: "HomeKit bridge not available" });
+      try {
+        await homekit.reset();
+        return json(res, 200, homekit.status());
+      } catch (e) {
+        return json(res, 500, { error: e.message });
+      }
     }
 
     // SSE stream of change events.

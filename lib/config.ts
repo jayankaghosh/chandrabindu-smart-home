@@ -79,6 +79,8 @@ interface AppConfig {
   /** Idle screensaver: after `idleSec` of no input, show a clock + these images,
    *  advancing to the next image every `imageSec`. */
   screensaver?: { enabled: boolean; idleSec: number; imageSec?: number; images: string[] };
+  /** Apple Home (HomeKit) bridge, run by the device gateway. Off by default. */
+  homekit?: { enabled: boolean };
 }
 
 /** Public (no secret) view of a user, for the settings UI. */
@@ -151,6 +153,7 @@ export function setPassword(password: string): void {
     lockInfo: existing?.lockInfo,
     loopGuard: existing?.loopGuard,
     screensaver: existing?.screensaver,
+    homekit: existing?.homekit,
   };
   write(config);
 }
@@ -486,6 +489,20 @@ export function setLoopGuard(maxToggles: number, windowSec: number): void {
     windowSec: Math.max(2, Math.min(3600, Math.round(windowSec))),
   };
   write({ ...config, loopGuard: clamped });
+}
+
+// ── Apple Home (HomeKit) bridge ──────────────────────────────────────────────
+
+/** Whether the gateway should publish the Apple Home bridge. */
+export function isHomekitEnabled(): boolean {
+  return read()?.homekit?.enabled === true;
+}
+
+/** Turn the Apple Home bridge on/off (superadmin). The gateway watches config.json. */
+export function setHomekitEnabled(enabled: boolean): void {
+  const config = read();
+  if (!config) throw new Error("App is not onboarded yet");
+  write({ ...config, homekit: { enabled } });
 }
 
 // ── Screensaver ──────────────────────────────────────────────────────────────
