@@ -1,0 +1,4 @@
+# SwiftPM build products and the assembled .app
+.build/
+build/
+.swiftpm/
