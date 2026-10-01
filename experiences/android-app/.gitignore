@@ -1,0 +1,18 @@
+# Build outputs
+build/
+app/build/
+*.apk
+*.aab
+
+# Gradle / IDE
+.gradle/
+.kotlin/
+.idea/
+*.iml
+local.properties
+captures/
+
+# Signing: the release keystore and its password never go into git
+keystore/
+*.jks
+*.keystore
