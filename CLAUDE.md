@@ -356,8 +356,17 @@ real time when the gateway is up.
   is locked or the setup gate is open, and logged as `COMMAND` (user "Apple Home").
   - **Layout:** one bridged accessory **per room** (user assigns ~10 rooms once,
     then optionally "Show as Separate Tiles"), each control a service named via
-    `ConfiguredName`; plus a "Routines" accessory with a momentary switch per
-    routine (runs `RuleEngine.runRoutine`, flips back off after 1s).
+    `ConfiguredName`; **one accessory per routine** (a momentary switch: runs
+    `RuleEngine.runRoutine`, flips back off after 1s). Routines are NOT grouped:
+    the Home app ignores per-service names when many same-type switches share an
+    accessory and shows "Switch", "Switch 2", but it always shows an accessory's
+    own name. Names pass through `hkName()` (HomeKit rejects e.g. "&"; it becomes
+    "and"). Names are read at pairing; later renames may need a re-pair.
+  - **"Any light on" sensor** ("House lights" accessory, OccupancySensor): detected
+    while any light is on (light-named Boolean or dimmer, any room, not
+    protected), pushed live. Lets a Shortcut or Home automation ask "are all the
+    lights off?" in one check. Lights with generic names ("Switch 1") aren't
+    counted; rename them to include "light".
   - **Mapping:** Boolean -> Lightbulb / Outlet / Fan / Switch by name keywords;
     Integer -> Lightbulb + Brightness; numeric fan Enum ("0","25".."100") ->
     Fanv2 Active + RotationSpeed stepped to the levels; other enums skipped.

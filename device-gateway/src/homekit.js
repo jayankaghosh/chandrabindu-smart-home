@@ -6,8 +6,8 @@
 // lock and the super-protected rule still apply.
 //
 // Layout: one accessory per room (the user assigns ~10 rooms once in Home, not
-// every switch), each control a service inside it, plus a "Routines"
-// accessory with a momentary switch per routine.
+// every switch), each control a service inside it, and one accessory per
+// routine (a momentary switch), so each routine keeps its own name in Home.
 //
 // Left out on purpose, because HomeKit has no admin role: protected and
 // super-protected controls, panel child locks, password-locked rooms and
@@ -109,8 +109,15 @@ function specFor(fn) {
   return null;
 }
 
+/** A light for the "Any light on" sensor: a light-named switch or any dimmer. */
+function isLight(device, fn) {
+  if (device.bluetooth || fn.code === CHILD_LOCK || fn.protected || fn.superProtected) return false;
+  return (fn.type === "Boolean" && kindOf(fn) === "light") || fn.type === "Integer";
+}
+
 function typeKey(want) {
   if (want.routineId) return "routine";
+  if (want.sensor) return `sensor:${want.sensor}`;
   const s = want.spec;
   if (s.kind === "fanLevels") return `fanLevels:${s.levels.join(",")}`;
   if (s.kind === "dimmer") return `dimmer:${want.fn.min ?? 0}-${want.fn.max ?? 100}`;
@@ -124,6 +131,22 @@ function setInfo(accessory, model, id) {
     .setCharacteristic(Characteristic.Model, model)
     .setCharacteristic(Characteristic.SerialNumber, id.replace(/-/g, "").slice(0, 12).toUpperCase())
     .setCharacteristic(Characteristic.FirmwareRevision, "1.0.0");
+}
+
+/**
+ * A name HomeKit accepts: letters, numbers, spaces, apostrophes, hyphens,
+ * commas and periods, starting and ending with a letter or number. Anything
+ * else (e.g. "&") makes the Home app reject the name and fall back to a
+ * generic one like "Switch 2".
+ */
+function hkName(raw, fallback = "Switch") {
+  const s = String(raw || "")
+    .replace(/&/g, " and ")
+    .replace(/[^\p{L}\p{N} '\-,.]/gu, " ")
+    .replace(/\s+/g, " ")
+    .replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "")
+    .trim();
+  return (s || fallback).slice(0, 64);
 }
 
 /** Name a service so each tile in Home shows the control's own name. */
@@ -147,6 +170,9 @@ class HomeKitBridge {
     this.accessories = new Map(); // accessory UUID -> { accessory, services: Map(subtype -> entry) }
     this.byControl = new Map(); // "deviceId::code" -> entry
     this.lastLevel = new Map(); // "deviceId::code" -> last non-off value (fans, dimmers)
+    this.lightRefs = []; // every light, for the "Any light on" sensor
+    this.lightKeys = new Set();
+    this.lightSensor = null;
     this.chain = Promise.resolve();
     this.syncTimer = null;
   }
@@ -252,7 +278,7 @@ class HomeKitBridge {
       setupCode: identity ? identity.pincode : null,
       setupURI: this.running && this.bridge ? this.bridge.setupURI() : null,
       port: PORT,
-      rooms: [...this.accessories.values()].filter((a) => !a.isRoutines).length,
+      rooms: [...this.accessories.values()].filter((a) => !a.isRoutines && !a.isSensor).length,
       controls: this.byControl.size,
       routines,
       error: this.lastError,
@@ -279,29 +305,50 @@ class HomeKitBridge {
     const model = buildModel();
 
     const desired = new Map();
+    const lightRefs = [];
     for (const room of model.rooms) {
       const entries = [];
       for (const device of room.devices) {
         for (const fn of device.functions) {
+          if (isLight(device, fn)) lightRefs.push({ deviceId: device.id, code: fn.code, type: fn.type, min: fn.min ?? 0 });
           if (!this.eligible(room, device, fn)) continue;
-          entries.push({ subtype: `${device.id}:${fn.code}`, name: fn.name, spec: specFor(fn), deviceId: device.id, code: fn.code, fn, deviceName: device.name, roomName: room.name });
+          entries.push({ subtype: `${device.id}:${fn.code}`, name: hkName(fn.name), spec: specFor(fn), deviceId: device.id, code: fn.code, fn, deviceName: device.name, roomName: room.name });
         }
       }
-      if (entries.length) desired.set(uuid.generate(`chandrabindu.room.${room.id}`), { name: room.name, model: "Room", entries });
+      if (entries.length) desired.set(uuid.generate(`chandrabindu.room.${room.id}`), { name: hkName(room.name, "Room"), model: "Room", entries });
     }
-    const routines = loadRoutines();
-    if (routines.length) {
-      desired.set(uuid.generate("chandrabindu.routines"), {
-        name: "Routines",
-        model: "Routines",
+    // "Any light on": one read-only sensor for the whole house, so a Shortcut
+    // or Home automation can ask "are all the lights off?" in a single check.
+    // Counts lights in every room (locked ones too; reading is harmless).
+    this.lightRefs = lightRefs;
+    this.lightKeys = new Set(lightRefs.map((r) => `${r.deviceId}::${r.code}`));
+    if (lightRefs.length) {
+      desired.set(uuid.generate("chandrabindu.sensor.lights"), {
+        name: "House lights",
+        model: "Status",
+        isSensor: true,
+        entries: [{ subtype: "sensor:lights", name: "Any light on", sensor: "lights" }],
+      });
+    }
+
+    // Each routine is its own accessory: Home ignores per-service names when
+    // many same-type switches share one accessory ("Switch", "Switch 2", …),
+    // but always shows an accessory's own name. It also makes every routine a
+    // separate tile for Control Center, scenes and Siri.
+    for (const r of loadRoutines()) {
+      const name = hkName(r.name, "Routine");
+      desired.set(uuid.generate(`chandrabindu.routine.${r.id}`), {
+        name,
+        model: "Routine",
         isRoutines: true,
-        entries: routines.map((r) => ({ subtype: `routine:${r.id}`, name: r.name, routineId: r.id })),
+        entries: [{ subtype: `routine:${r.id}`, name, routineId: r.id }],
       });
     }
 
     for (const [id, acc] of this.accessories) {
       if (desired.has(id)) continue;
       bridge.removeBridgedAccessory(acc.accessory, !live);
+      if (acc.isSensor) this.lightSensor = null;
       for (const entry of acc.services.values()) if (entry.deviceId) this.byControl.delete(`${entry.deviceId}::${entry.code}`);
       this.accessories.delete(id);
     }
@@ -310,10 +357,14 @@ class HomeKitBridge {
       let acc = this.accessories.get(id);
       const isNew = !acc;
       if (isNew) {
-        acc = { accessory: new Accessory(want.name, id), services: new Map(), isRoutines: Boolean(want.isRoutines) };
+        acc = { accessory: new Accessory(want.name, id), services: new Map(), isRoutines: Boolean(want.isRoutines), isSensor: Boolean(want.isSensor) };
         setInfo(acc.accessory, want.model, id);
         this.accessories.set(id, acc);
       }
+      if (!isNew && acc.name !== want.name) {
+        acc.accessory.getService(Service.AccessoryInformation).updateCharacteristic(Characteristic.Name, want.name);
+      }
+      acc.name = want.name;
       const wanted = new Map(want.entries.map((e) => [e.subtype, e]));
       for (const [subtype, entry] of acc.services) {
         const w = wanted.get(subtype);
@@ -376,12 +427,45 @@ class HomeKitBridge {
   }
 
   onChange(e) {
-    const entry = this.byControl.get(`${e.deviceId}::${e.code}`);
+    const key = `${e.deviceId}::${e.code}`;
+    const entry = this.byControl.get(key);
     if (entry && entry.push) entry.push(e.value);
+    if (this.lightKeys.has(key)) this.pushLightSensor();
+  }
+
+  anyLightOn() {
+    for (const r of this.lightRefs) {
+      const conn = this.gateway.get(r.deviceId);
+      if (!conn) continue;
+      const v = conn.status[r.code];
+      if (r.type === "Integer" ? Number(v) > r.min : v === true) return true;
+    }
+    return false;
+  }
+
+  pushLightSensor() {
+    if (!this.lightSensor) return;
+    this.lightSensor.updateCharacteristic(
+      Characteristic.OccupancyDetected,
+      this.anyLightOn()
+        ? Characteristic.OccupancyDetected.OCCUPANCY_DETECTED
+        : Characteristic.OccupancyDetected.OCCUPANCY_NOT_DETECTED,
+    );
   }
 
   createService(accessory, w) {
     if (w.routineId) return this.routineService(accessory, w);
+    if (w.sensor === "lights") {
+      const svc = accessory.addService(Service.OccupancySensor, w.name, w.subtype);
+      svc.getCharacteristic(Characteristic.OccupancyDetected).onGet(() =>
+        this.anyLightOn()
+          ? Characteristic.OccupancyDetected.OCCUPANCY_DETECTED
+          : Characteristic.OccupancyDetected.OCCUPANCY_NOT_DETECTED,
+      );
+      setNames(svc, w.name);
+      this.lightSensor = svc;
+      return { service: svc, typeKey: typeKey(w), name: w.name, ref: w };
+    }
     const key = `${w.deviceId}::${w.code}`;
     const entry = { service: null, typeKey: typeKey(w), deviceId: w.deviceId, code: w.code, ref: w, name: w.name, push: null };
     const fn = w.fn;
