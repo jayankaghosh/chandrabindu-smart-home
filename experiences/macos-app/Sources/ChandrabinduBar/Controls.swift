@@ -13,9 +13,19 @@ enum Controls {
         controllable.contains(fn.type) && !isChildLock(fn)
     }
 
-    /// Counts toward "N on": a plain switch that is not protected or a lock.
+    /// A fan speed control: an Enum whose every option is a number ("0" = off).
+    static func isFanLevel(_ fn: DeviceFunction) -> Bool {
+        guard fn.type == "Enum", let range = fn.range, !range.isEmpty else { return false }
+        return range.allSatisfy { Int($0) != nil }
+    }
+
+    /// Counts toward "N on" (same rule as lib/onCount.ts): a switch that is on
+    /// or a fan running at any speed, never a protected control or a lock.
     static func countsAsOn(_ fn: DeviceFunction, _ value: JSONValue?) -> Bool {
-        fn.type == "Boolean" && fn.protected != true && !isChildLock(fn) && value?.bool == true
+        guard fn.protected != true, !isChildLock(fn), let value else { return false }
+        if fn.type == "Boolean" { return value.bool == true }
+        if isFanLevel(fn) { return (value.number ?? 0) > 0 }
+        return false
     }
 
     static func isOn(_ fn: DeviceFunction, _ value: JSONValue?) -> Bool {

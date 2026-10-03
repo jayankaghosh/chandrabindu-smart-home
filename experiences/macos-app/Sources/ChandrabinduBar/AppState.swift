@@ -569,23 +569,25 @@ final class AppState: ObservableObject {
         }
     }
 
-    /// Turn off every plain switch that is on in a room (never protected ones or locks).
+    /// Turn off everything counted as on in a room: switches and running fans
+    /// (never protected ones or locks).
     func turnOffRoom(_ room: Room) {
         guard !appLocked, !setupIncomplete, !room.isBlocked else { return }
         for device in room.devices where device.bluetooth != true && !offline.contains(device.id) {
             let fns = device.functions.filter {
-                $0.type == "Boolean" && $0.protected != true && $0.superProtected != true
-                    && !Controls.isChildLock($0) && value(device.id, $0.code)?.bool == true
+                $0.superProtected != true && Controls.countsAsOn($0, value(device.id, $0.code))
             }
             guard !fns.isEmpty else { continue }
             let deviceId = device.id
-            for fn in fns { values[deviceId, default: [:]][fn.code] = .bool(false) }
+            let previous = fns.map { value(deviceId, $0.code) }
+            let offValue: (DeviceFunction) -> JSONValue = { $0.type == "Boolean" ? .bool(false) : .string("0") }
+            for fn in fns { values[deviceId, default: [:]][fn.code] = offValue(fn) }
             Task {
                 do {
                     try await client.send("/api/devices/\(deviceId)/commands",
-                                          body: ["commands": fns.map { ["code": $0.code, "value": false] }])
+                                          body: ["commands": fns.map { ["code": $0.code, "value": $0.type == "Boolean" ? false : "0"] as [String: Any] }])
                 } catch {
-                    for fn in fns { values[deviceId, default: [:]][fn.code] = .bool(true) }
+                    for (fn, old) in zip(fns, previous) { values[deviceId, default: [:]][fn.code] = old }
                     handle(error)
                 }
                 if !live { await refreshStatuses(only: [deviceId]) }
