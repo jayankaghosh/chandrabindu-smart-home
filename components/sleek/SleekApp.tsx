@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronLeft, Home as HomeIcon, LogOut, Settings as SettingsIcon, Loader2, CloudDownload, Pencil } from "lucide-react";
 import { useHomeData } from "../useHomeData";
-import { isChildLock } from "@/lib/panelLock";
+import { countsAsOn } from "@/lib/onCount";
 import ThemeToggle from "../ThemeToggle";
 import SleekModeToggle from "./SleekModeToggle";
 import { readEditMode, setEditMode as persistEditMode } from "./editMode";
@@ -168,8 +168,8 @@ export default function SleekApp({ role, username }: { role: "admin" | "user"; u
         const vals = statusByDevice[d.id]?.values ?? {};
         for (const f of d.functions) {
           if (f.protected) prot++;
-          // Exclude protected controls (meant to stay on) from the "on" tally.
-          if (f.type === "Boolean" && !f.protected && !isChildLock(f.code) && vals[f.code] === true) on++;
+          // Switches on + fans running; protected controls and panel locks never count.
+          if (countsAsOn(f, vals[f.code])) on++;
         }
       }
     }
@@ -284,8 +284,8 @@ export default function SleekApp({ role, username }: { role: "admin" | "user"; u
             let on = 0;
             for (const d of r.devices) {
               const vals = statusByDevice[d.id]?.values ?? {};
-              // Count on switches, excluding protected ones (kept-on, not user toggles).
-              for (const f of d.functions) if (f.type === "Boolean" && !f.protected && !isChildLock(f.code) && vals[f.code] === true) on++;
+              // Switches on + fans running, excluding protected ones (kept-on, not user toggles).
+              for (const f of d.functions) if (countsAsOn(f, vals[f.code])) on++;
             }
             return { id: r.id, name: r.name, locked: r.locked, on };
           })}

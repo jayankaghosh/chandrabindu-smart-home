@@ -23,6 +23,7 @@ import FavouritableControl from "./FavouritableControl";
 import PanelLockToggle from "./PanelLockToggle";
 import { favKey } from "./favKey";
 import { isChildLock } from "@/lib/panelLock";
+import { countsAsOn } from "@/lib/onCount";
 
 export interface DeviceStatusState {
   reachable: boolean | null;
@@ -97,7 +98,7 @@ export default function RoomCard({
     const vals = statusByDevice[d.id]?.values ?? {};
     for (const f of d.functions) {
       // Protected controls (meant to stay on) don't count toward "N on".
-      if (f.type === "Boolean" && !f.protected && vals[f.code] === true) onCount++;
+      if (countsAsOn(f, vals[f.code])) onCount++;
     }
   }
 
@@ -622,9 +623,7 @@ function DeviceGroup({
   );
   const lockFn = device.functions.find((f) => isChildLock(f.code));
   const hasProtected = controllable.some((f) => f.protected);
-  const onCount = controllable.filter(
-    (f) => f.type === "Boolean" && !f.protected && values[f.code] === true,
-  ).length;
+  const onCount = controllable.filter((f) => countsAsOn(f, values[f.code])).length;
 
   const controlName = (code: string) =>
     controllable.find((f) => f.code === code)?.name ?? code;
