@@ -465,11 +465,13 @@ Two full UIs, per-device selectable in Settings (Appearance). Persisted in
     Phase C (smartwatch subset) are **deferred** — do not start without explicit
     user confirmation.
 - **Sleek Edit Mode** (`components/sleek/editMode.ts`, `SleekModeToggle.tsx`):
-  an **admin-only** Run/Edit toggle in the Sleek home header, remembered per
+  an **admin-only** Run/Edit mode on **every** Sleek screen: a small floating
+  icon bottom-centre (`SleekModeFab`, rendered in `SleekApp` outside the screen
+  switch, between Master and the Assistant; amber pencil while editing) that
+  opens the `SleekModeToggle` segmented control on tap. Remembered per
   device (`localStorage["sleek-edit-mode"]`, read after mount). Run Mode is the
   lightweight control-only surface; Edit Mode reveals the management features
-  Sleek otherwise hides. A persistent "Edit" pill shows in the header on
-  sub-screens while active. `SleekApp` holds `editMode` and threads it (with
+  Sleek otherwise hides. `SleekApp` holds `editMode` and threads it (with
   `isAdmin`) to children; every affordance gates on `isAdmin && editMode`. The
   APIs are already `guard({admin:true})`, so this is purely a UI gate. Features:
   - **Naming/move/protect** — room rename bar + per-device `SleekDeviceEditSheet`

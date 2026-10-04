@@ -4,11 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronLeft, Home as HomeIcon, LogOut, Settings as SettingsIcon, Loader2, CloudDownload, Pencil } from "lucide-react";
+import { ChevronLeft, Home as HomeIcon, LogOut, Settings as SettingsIcon, Loader2, CloudDownload } from "lucide-react";
 import { useHomeData } from "../useHomeData";
 import { countsAsOn } from "@/lib/onCount";
 import ThemeToggle from "../ThemeToggle";
-import SleekModeToggle from "./SleekModeToggle";
+import SleekModeFab from "./SleekModeFab";
 import { readEditMode, setEditMode as persistEditMode } from "./editMode";
 import Assistant from "../Assistant";
 import Insights from "../Insights";
@@ -232,20 +232,10 @@ export default function SleekApp({ role, username }: { role: "admin" | "user"; u
               )}
               <h1 className="truncate text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">{title}</h1>
             </div>
-            {/* Persistent indicator so a device is never silently left editable. */}
-            {editMode && !atHome && (
-              <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-500/15 px-2.5 py-1 text-xs font-semibold text-amber-700 dark:text-amber-300">
-                <Pencil size={12} />
-                Edit
-              </span>
-            )}
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {atHome ? (
               <>
-                {isAdmin && (
-                  <SleekModeToggle editMode={editMode} onChange={toggleEditMode} />
-                )}
                 {isAdmin && editMode && (
                   <button
                     onClick={syncFromCloud}
@@ -373,6 +363,9 @@ export default function SleekApp({ role, username }: { role: "admin" | "user"; u
       )}
 
       <SleekMasterControl onDone={data.reload} />
+      {/* Small Run / Edit button bottom-centre on every screen (between Master
+          and the Assistant); it opens the toggle on tap. */}
+      {isAdmin && <SleekModeFab editMode={editMode} onChange={toggleEditMode} />}
       <SleekScreensaver
         stats={{ rooms: roomCount, devices: deviceCount, on: onCount, offline, protectedCount }}
       />

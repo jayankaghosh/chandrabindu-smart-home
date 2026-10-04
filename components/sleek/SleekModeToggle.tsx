@@ -2,7 +2,7 @@
 
 import { Play, Pencil } from "lucide-react";
 
-// Segmented Run / Edit control for the Sleek home header (admin only). Run Mode
+// Segmented Run / Edit control, floating bottom-centre on every Sleek screen (admin only). Run Mode
 // is the lightweight control-only surface; Edit Mode reveals management
 // features. The caller persists the choice (editMode.ts) and gates on isAdmin.
 //
@@ -20,7 +20,7 @@ export default function SleekModeToggle({
     <div
       role="group"
       aria-label="Run or Edit mode"
-      className="inline-flex items-center rounded-2xl border border-white/60 bg-white/50 p-1 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.06]"
+      className="inline-flex items-center rounded-2xl border border-white/60 bg-white/80 p-1 shadow-xl backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/80"
     >
       {(
         [
