@@ -466,9 +466,10 @@ Two full UIs, per-device selectable in Settings (Appearance). Persisted in
     user confirmation.
 - **Sleek Edit Mode** (`components/sleek/editMode.ts`, `SleekModeToggle.tsx`):
   an **admin-only** Run/Edit mode on **every** Sleek screen: a small floating
-  icon bottom-centre (`SleekModeFab`, rendered in `SleekApp` outside the screen
-  switch, between Master and the Assistant; amber pencil while editing) that
-  opens the `SleekModeToggle` segmented control on tap. Remembered per
+  icon bottom-left under the Master button (`SleekModeFab`, rendered in `SleekApp`
+  outside the screen switch; Master gets `raised` for admins to make room; amber
+  pencil while editing) that opens the `SleekModeToggle` segmented control to its
+  right on tap. Remembered per
   device (`localStorage["sleek-edit-mode"]`, read after mount). Run Mode is the
   lightweight control-only surface; Edit Mode reveals the management features
   Sleek otherwise hides. `SleekApp` holds `editMode` and threads it (with

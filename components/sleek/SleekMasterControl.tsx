@@ -6,8 +6,9 @@ import { Power, PowerOff, Zap, X, Loader2 } from "lucide-react";
 
 // A persistent floating control (bottom-left, opposite the Assistant) that turns
 // every switch on or off at once. Both actions confirm first; master-off leaves
-// protected controls on (enforced server-side in /api/master).
-export default function SleekMasterControl({ onDone }: { onDone: () => void }) {
+// protected controls on (enforced server-side in /api/master). `raised` lifts it
+// to make room for the admin Run / Edit button underneath (SleekModeFab).
+export default function SleekMasterControl({ onDone, raised = false }: { onDone: () => void; raised?: boolean }) {
   const [open, setOpen] = useState(false);
   const [confirm, setConfirm] = useState<null | boolean>(null); // true=all on, false=all off
   const [busy, setBusy] = useState(false);
@@ -39,7 +40,7 @@ export default function SleekMasterControl({ onDone }: { onDone: () => void }) {
   return (
     <>
       {/* Floating trigger + expandable menu (bottom-left). */}
-      <div className="fixed bottom-6 left-6 z-40 flex flex-col items-start gap-2">
+      <div className={`fixed left-6 z-40 flex flex-col items-start gap-2 ${raised ? "bottom-[76px]" : "bottom-6"}`}>
         <AnimatePresence>
           {open && (
             <motion.div
@@ -75,7 +76,7 @@ export default function SleekMasterControl({ onDone }: { onDone: () => void }) {
 
       {/* Toast-ish result */}
       {result && (
-        <div className="fixed bottom-24 left-6 z-40 max-w-xs rounded-2xl bg-slate-900/90 px-4 py-2.5 text-sm text-white shadow-lg backdrop-blur">
+        <div className={`fixed left-6 z-40 max-w-xs ${raised ? "bottom-[148px]" : "bottom-24"} rounded-2xl bg-slate-900/90 px-4 py-2.5 text-sm text-white shadow-lg backdrop-blur`}>
           {result}
         </div>
       )}

@@ -362,9 +362,9 @@ export default function SleekApp({ role, username }: { role: "admin" | "user"; u
         />
       )}
 
-      <SleekMasterControl onDone={data.reload} />
-      {/* Small Run / Edit button bottom-centre on every screen (between Master
-          and the Assistant); it opens the toggle on tap. */}
+      <SleekMasterControl onDone={data.reload} raised={isAdmin} />
+      {/* Small Run / Edit button bottom-left under Master on every screen; it
+          opens the toggle on tap. */}
       {isAdmin && <SleekModeFab editMode={editMode} onChange={toggleEditMode} />}
       <SleekScreensaver
         stats={{ rooms: roomCount, devices: deviceCount, on: onCount, offline, protectedCount }}

@@ -4,10 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import { Play, Pencil } from "lucide-react";
 import SleekModeToggle from "./SleekModeToggle";
 
-// Small floating Run / Edit button (bottom-centre, every Sleek screen, admin
-// only). Collapsed it is just an icon showing the current mode (amber pencil
-// while editing, so a device is never silently left editable); a tap opens the
-// Run / Edit toggle above it, and picking a mode or tapping elsewhere closes it.
+// Small floating Run / Edit button (bottom-left under the Master button, every
+// Sleek screen, admin only). Collapsed it is just an icon showing the current
+// mode (amber pencil while editing, so a device is never silently left
+// editable); a tap opens the Run / Edit toggle to its right, and picking a mode
+// or tapping elsewhere closes it.
 export default function SleekModeFab({
   editMode,
   onChange,
@@ -35,16 +36,7 @@ export default function SleekModeFab({
   const Icon = editMode ? Pencil : Play;
 
   return (
-    <div ref={root} className="fixed bottom-9 left-1/2 z-40 flex -translate-x-1/2 flex-col items-center gap-2">
-      {open && (
-        <SleekModeToggle
-          editMode={editMode}
-          onChange={(on) => {
-            onChange(on);
-            setOpen(false);
-          }}
-        />
-      )}
+    <div ref={root} className="fixed bottom-6 left-8 z-40 flex items-center gap-2">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -59,6 +51,15 @@ export default function SleekModeFab({
       >
         <Icon size={16} />
       </button>
+      {open && (
+        <SleekModeToggle
+          editMode={editMode}
+          onChange={(on) => {
+            onChange(on);
+            setOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 }
