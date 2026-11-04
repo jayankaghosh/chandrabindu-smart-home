@@ -52,7 +52,7 @@ Requires macOS 14+ and the Xcode command line tools.
 ```bash
 cd experiences/macos-app
 scripts/build-app.sh            # -> build/Chandrabindu.app
-scripts/build-app.sh --install  # also copies it to ~/Applications and opens it
+scripts/build-app.sh --install  # also copies it to /Applications and opens it
 ```
 
 The first launch asks to **find devices on your local network**: allow it, or

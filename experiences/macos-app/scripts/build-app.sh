@@ -2,7 +2,7 @@
 # Build Chandrabindu.app (menu bar app) into experiences/macos-app/build/.
 #
 #   scripts/build-app.sh            # release build -> build/Chandrabindu.app
-#   scripts/build-app.sh --install  # ...and copy it to ~/Applications
+#   scripts/build-app.sh --install  # ...and copy it to /Applications
 #
 # Signing: uses $CODESIGN_IDENTITY if set (e.g. "Apple Development: you@x"),
 # otherwise ad-hoc signs, which is fine for running on this Mac.
@@ -47,7 +47,7 @@ codesign --force --deep --sign "${CODESIGN_IDENTITY:--}" "$APP"
 echo "✓ Built $APP"
 
 if [[ "${1:-}" == "--install" ]]; then
-  DEST="$HOME/Applications"
+  DEST="/Applications"
   mkdir -p "$DEST"
   # Quit a running copy first so the bundle can be replaced.
   pkill -x ChandrabinduBar 2>/dev/null || true
