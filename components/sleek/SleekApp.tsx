@@ -9,6 +9,7 @@ import { useHomeData } from "../useHomeData";
 import { countsAsOn } from "@/lib/onCount";
 import ThemeToggle from "../ThemeToggle";
 import SleekModeFab from "./SleekModeFab";
+import SleekGoodnight from "./SleekGoodnight";
 import { readEditMode, setEditMode as persistEditMode } from "./editMode";
 import Assistant from "../Assistant";
 import Insights from "../Insights";
@@ -109,6 +110,10 @@ export default function SleekApp({ role, username }: { role: "admin" | "user"; u
   useEffect(() => {
     if (isAdmin) setEditModeState(readEditMode());
   }, [isAdmin]);
+  // Goodnight round: a full-screen overlay, not a nav-stack screen (a refresh
+  // lands back on home, which is fine for a bedtime ritual).
+  const [goodnightOpen, setGoodnightOpen] = useState(false);
+
   const toggleEditMode = (on: boolean) => {
     setEditModeState(on);
     persistEditMode(on);
@@ -303,7 +308,13 @@ export default function SleekApp({ role, username }: { role: "admin" | "user"; u
               exit="exit"
               transition={screenTransition}
             >
-              {screen.k === "home" && <SleekHome onCount={onCount} offline={offline} onOpen={(s: Section) => go({ k: s } as Screen)} />}
+              {screen.k === "home" && (
+                <SleekHome
+                  onCount={onCount}
+                  offline={offline}
+                  onOpen={(s: Section) => (s === "goodnight" ? setGoodnightOpen(true) : go({ k: s } as Screen))}
+                />
+              )}
               {screen.k === "favourites" && (
                 <SleekFavourites
                   rooms={rooms ?? []}
@@ -366,6 +377,16 @@ export default function SleekApp({ role, username }: { role: "admin" | "user"; u
       {/* Small Run / Edit button bottom-left under Master on every screen; it
           opens the toggle on tap. */}
       {isAdmin && <SleekModeFab editMode={editMode} onChange={toggleEditMode} />}
+      {goodnightOpen && rooms && (
+        <SleekGoodnight
+          rooms={rooms}
+          statusByDevice={data.statusByDevice}
+          live={data.live}
+          sendCommand={data.sendCommand}
+          fetchDeviceStatus={data.fetchDeviceStatus}
+          onClose={() => setGoodnightOpen(false)}
+        />
+      )}
       <SleekScreensaver
         stats={{ rooms: roomCount, devices: deviceCount, on: onCount, offline, protectedCount }}
       />

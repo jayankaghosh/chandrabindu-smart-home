@@ -5,9 +5,10 @@ import { getStatusLocal, isScanning } from "@/lib/local";
 
 export const dynamic = "force-dynamic";
 
-// Live status read over the LAN.
+// Live status read over the LAN. `?fresh=1` asks the device itself rather than
+// the gateway's cache (the Goodnight round's "check again").
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: { id: string } },
 ) {
   const denied = guard();
@@ -24,7 +25,8 @@ export async function GET(
     );
   }
   try {
-    const status = await getStatusLocal(device);
+    const fresh = new URL(req.url).searchParams.get("fresh") === "1";
+    const status = await getStatusLocal(device, { fresh });
     return NextResponse.json({ status, online: true });
   } catch (err) {
     return NextResponse.json(

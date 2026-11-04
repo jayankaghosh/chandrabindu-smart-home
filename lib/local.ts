@@ -482,12 +482,14 @@ export async function heartbeat(): Promise<HeartbeatResult> {
 /** Read current status over the LAN, mapped to function codes. */
 export async function getStatusLocal(
   meta: CatalogDevice,
+  { fresh = false }: { fresh?: boolean } = {},
 ): Promise<DeviceStatus[]> {
   // Prefer the gateway (single connection owner, warm cache). Fall back to a
-  // direct read only if the gateway itself is unreachable.
+  // direct read only if the gateway itself is unreachable. `fresh` makes the
+  // gateway ask the device instead of its cache (a direct read always asks).
   if (gatewayConfigured()) {
     try {
-      return await gatewayGetStatus(meta.id);
+      return await gatewayGetStatus(meta.id, fresh);
     } catch (e) {
       if (!(e instanceof GatewayUnavailable)) throw e;
     }

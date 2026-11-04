@@ -48,11 +48,12 @@ function breakerOpen(): boolean {
  * the gateway is up but the device isn't currently reachable (caller should NOT
  * fall back — going direct would fight the gateway's connection).
  */
-export async function gatewayGetStatus(id: string): Promise<DeviceStatus[]> {
+export async function gatewayGetStatus(id: string, fresh = false): Promise<DeviceStatus[]> {
   if (!gatewayConfigured() || breakerOpen()) throw new GatewayUnavailable();
   let res: Response;
   try {
-    res = await gwFetch(`/status/${encodeURIComponent(id)}`);
+    // fresh: the gateway asks the device itself instead of answering from cache.
+    res = await gwFetch(`/status/${encodeURIComponent(id)}${fresh ? "?fresh=1" : ""}`);
   } catch {
     downUntil = Date.now() + BREAKER_MS;
     throw new GatewayUnavailable();

@@ -83,6 +83,8 @@ interface AppConfig {
   homekit?: { enabled: boolean };
   /** Secret for running API-enabled shortcuts via ?shortcut_token=… (unset = off). */
   shortcutToken?: string;
+  /** Goodnight round: the room order to walk through, and rooms left out. */
+  goodnight?: { order: string[]; skip: string[] };
 }
 
 /** Public (no secret) view of a user, for the settings UI. */
@@ -540,6 +542,21 @@ export function verifyShortcutToken(presented: string): boolean {
   const a = Buffer.from(presented);
   const b = Buffer.from(expected);
   return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+// ── Goodnight round ──────────────────────────────────────────────────────────
+
+/** Room order for the Goodnight round, plus rooms left out of it. */
+export function getGoodnight(): { order: string[]; skip: string[] } {
+  const g = read()?.goodnight;
+  const ids = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
+  return { order: ids(g?.order), skip: ids(g?.skip) };
+}
+
+export function setGoodnight(order: string[], skip: string[]): void {
+  const config = read();
+  if (!config) throw new Error("App is not onboarded yet");
+  write({ ...config, goodnight: { order: [...new Set(order)], skip: [...new Set(skip)] } });
 }
 
 // ── Screensaver ──────────────────────────────────────────────────────────────

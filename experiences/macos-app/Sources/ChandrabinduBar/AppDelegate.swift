@@ -95,6 +95,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         state.panelOpened()
     }
 
+    /// Launched again (app search, Finder, `open`) while already running: show the panel.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !popover.isShown { togglePanel() }
+        return false
+    }
+
     func popoverDidClose(_ notification: Notification) {
         state.panelClosed()
     }
