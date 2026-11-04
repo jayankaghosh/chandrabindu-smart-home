@@ -26,6 +26,7 @@ import {
   Mic,
   Smartphone,
   Command,
+  Moon,
 } from "lucide-react";
 import { REGIONS } from "@/lib/regions";
 import ManualDeviceForm from "./ManualDeviceForm";
@@ -37,6 +38,7 @@ import ThemeSelect from "./ThemeSelect";
 import SuperProtectedSettings from "./SuperProtectedSettings";
 import HomeKitSettings from "./HomeKitSettings";
 import ShortcutTokenSettings from "./ShortcutTokenSettings";
+import GoodnightSettings from "./GoodnightSettings";
 
 // Realtime voice options for the Settings dropdowns.
 const REALTIME_MODELS = [
@@ -566,6 +568,11 @@ export default function Settings({ isAdmin }: { isAdmin: boolean }) {
             </button>
           </form>
           {locMsg && <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{locMsg}</p>}
+        </Section>
+
+        {/* Goodnight round: room order (drag to reorder) and which rooms take part */}
+        <Section icon={<Moon size={16} />} title="Goodnight round">
+          <GoodnightSettings />
         </Section>
 
         {/* Super-protected switch (the lifeline that powers internet / router) */}

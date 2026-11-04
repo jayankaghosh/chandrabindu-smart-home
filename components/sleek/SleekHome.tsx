@@ -1,15 +1,16 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Star, LayoutGrid, Play, Zap, Sparkles, Lightbulb, WifiOff, Mic, Link2, BarChart3, Monitor, Command } from "lucide-react";
+import { Star, LayoutGrid, Play, Zap, Sparkles, Lightbulb, WifiOff, Mic, Link2, BarChart3, Monitor, Command, Moon } from "lucide-react";
 import NavTile from "./NavTile";
 import { gridContainer } from "./motion";
 
-export type Section = "favourites" | "rooms" | "routines" | "automations" | "shortcuts" | "switchGroups" | "usage" | "screensaver" | "insights" | "voice";
+export type Section = "favourites" | "rooms" | "goodnight" | "routines" | "automations" | "shortcuts" | "switchGroups" | "usage" | "screensaver" | "insights" | "voice";
 
 const SECTIONS: { key: Section; title: string; subtitle: string; icon: any; accent: string }[] = [
   { key: "favourites", title: "Favourites", subtitle: "Your starred switches", icon: Star, accent: "from-amber-400 to-orange-500" },
   { key: "rooms", title: "Rooms", subtitle: "Browse by room", icon: LayoutGrid, accent: "from-brand-500 to-brand-400" },
+  { key: "goodnight", title: "Goodnight", subtitle: "A calm walk round the house", icon: Moon, accent: "from-indigo-600 to-slate-700" },
   { key: "routines", title: "Routines", subtitle: "Run a scene", icon: Play, accent: "from-fuchsia-500 to-pink-500" },
   { key: "automations", title: "Automations", subtitle: "If this, then that", icon: Zap, accent: "from-emerald-400 to-teal-500" },
   { key: "shortcuts", title: "Shortcuts", subtitle: "Run on demand or by URL", icon: Command, accent: "from-sky-500 to-indigo-500" },

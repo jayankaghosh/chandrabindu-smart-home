@@ -65,9 +65,11 @@ export function useHomeData() {
     load();
   }, [load]);
 
-  const fetchDeviceStatus = useCallback(async (id: string) => {
+  // `fresh` asks the device itself rather than the gateway's cache. Resolves to
+  // whether the device answered.
+  const fetchDeviceStatus = useCallback(async (id: string, fresh = false): Promise<boolean> => {
     try {
-      const res = await fetch(`/api/devices/${id}/status`);
+      const res = await fetch(`/api/devices/${id}/status${fresh ? "?fresh=1" : ""}`);
       const data = await res.json().catch(() => ({}));
       setStatusByDevice((prev) => {
         const cur = prev[id] ?? { reachable: null, scanning: false, values: {} };
@@ -76,8 +78,9 @@ export function useHomeData() {
         for (const s of data.status ?? []) values[s.code] = s.value;
         return { ...prev, [id]: { reachable: true, scanning: false, values } };
       });
+      return res.ok;
     } catch {
-      /* ignore */
+      return false;
     }
   }, []);
 
@@ -157,7 +160,7 @@ export function useHomeData() {
     const ids = rooms.flatMap((r) => r.devices.map((d) => d.id));
     if (ids.length === 0) return;
     const tick = () => {
-      if (document.visibilityState === "visible") ids.forEach(fetchDeviceStatus);
+      if (document.visibilityState === "visible") ids.forEach((id) => fetchDeviceStatus(id));
     };
     tick();
     const t = setInterval(tick, 20_000);

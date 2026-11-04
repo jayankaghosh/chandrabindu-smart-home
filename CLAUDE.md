@@ -127,11 +127,12 @@ to the browser), `app/api/gateway/route.ts` + `app/api/gateway/reinit/route.ts`
 
 | File / dir | Contents | Written by |
 |------------|----------|------------|
-| `config.json` | Admin `passwordHash`/`Salt`, auto-generated `sessionSecret`, `houseName`, `users[]` (standard users), room locks, Tuya creds, insights model, **protected controls**, **`superProtected`** (the lifeline switch, or `{none:true}`), `shortcutToken` (shortcut API secret), `location` (lat/lng), app `locked`+`lockInfo`, `loopGuard` thresholds | onboarding, Settings, `lib/config.ts` (+ gateway `loopguard.js` writes `locked`) |
+| `config.json` | Admin `passwordHash`/`Salt`, auto-generated `sessionSecret`, `houseName`, `users[]` (standard users), room locks, Tuya creds, insights model, **protected controls**, **`superProtected`** (the lifeline switch, or `{none:true}`), `shortcutToken` (shortcut API secret), `goodnight` (`{order, skip}` room ids for the Goodnight round), `location` (lat/lng), app `locked`+`lockInfo`, `loopGuard` thresholds | onboarding, Settings, `lib/config.ts` (+ gateway `loopguard.js` writes `locked`) |
 | `catalog.json` | Synced device catalog: `rooms[]` + `devices[]` (id, **key**, version, category, cloudName, functions with dpId/type/name/range) | cloud sync, `lib/store.ts` |
 | `overrides.json` | Local edits that survive re-sync: `deviceRoom`, `deviceName`, `roomName`, `controlName`, `extraRooms` | Settings/rename, `lib/store.ts` |
 | `automations.json` | `automations[]` (match all/any, conditions[] incl. time/sun triggers, actions[] incl. run-routine) | web UI, `lib/automations.ts` |
 | `switchGroups.json` | `groups[]` (name + member switches kept in sync) | web UI, `lib/switchGroups.ts` |
+| `goodnight/<username>.json` | That user's last finished Goodnight round: `{checkedAt, on[]}` (ignored after 12h) | `lib/goodnight.ts` |
 | `shortcuts.json` | `shortcuts[]` (manually run IF/THEN: match, conditions incl. group + time window, actions, `apiEnabled`) | web UI, `lib/shortcuts.ts` |
 | `suntimes.json` / `automationFired.json` | Cached daily sun times / per-trigger fired dates | `lib/sunTimes.ts`, `lib/automationScheduler.ts` |
 | `history/YYYY-MM-DD.jsonl` | Boolean on/off transitions `{deviceId,code,value,at}` for the Usage report | **gateway** `device-gateway/src/history.js` |
@@ -271,6 +272,28 @@ real time when the gateway is up.
   (`/api/shortcuts/token` GET/POST regenerate/DELETE, admin); constant-time check,
   failures rate-limited; it appears in proxy access logs, so it is regenerable.
   Response JSON: `{ran, conditionsMet, done, failed, skippedProtected, conditions[], message}`.
+- **Goodnight round** (`components/sleek/SleekGoodnight.tsx`, Sleek home tile
+  "Goodnight", `lib/goodnight.ts`, `/api/goodnight` GET + PUT (admin),
+  `/api/goodnight/check` POST, Settings > Goodnight round =
+  `components/GoodnightSettings.tsx`): a calm bedtime check, built for someone who
+  likes to check every room is off before sleeping. A dark full-screen overlay
+  (`z-[65]`, opened from `SleekApp`, not a nav-stack screen) walks the rooms in
+  the admin-set order (`config.json#goodnight.order`, drag-to-reorder with
+  framer `Reorder` + a grip handle; unticked rooms go in `skip`; new rooms are
+  appended). A rotary **dial** (drag, scroll wheel, arrow keys, or prev/next
+  buttons) steps between rooms with a WebAudio tick (mutable,
+  `localStorage["sleek-goodnight-sound"]`) and `navigator.vibrate` where it exists.
+  Landing on a room re-reads its panels **from the devices themselves**
+  (`/api/devices/[id]/status?fresh=1` -> `getStatusLocal(meta,{fresh})` ->
+  gateway `/status/:id?fresh=1`); a room counts as checked once confirmed, every
+  panel answered (or she chose "Leave it tonight") and nothing in it is on
+  (switches + fans, via `countsAsOn`; protected, super-protected and `child_lock`
+  never count). Anything on gets a one-tap Turn off. When every room is checked it
+  shows "The house is asleep" and POSTs the round (what was still on) per user.
+  The next round opens with what changed since then: gateway history for switches
+  (needs the gateway), plus anything on now that wasn't on then (covers fans and
+  the no-gateway case). Deliberately no counters or streaks. Locked rooms are
+  shown from the live connection and can't be switched off from the round.
 - **Item export / import** (`lib/itemTransfer.ts`, `/api/items/export?kind&id`,
   `/api/items/import?kind`, `components/sleek/ItemTransfer.tsx`): any single
   routine / automation / shortcut downloads as `<timestamp>.cnbdu`, a JSON envelope
@@ -537,7 +560,7 @@ Thin Expo Android WebView wrapper. On launch it GETs `/api/metadata`, checks
 
 Native Swift package (SwiftUI views in an AppKit `NSStatusItem` + `NSPopover`,
 macOS 14+), built into `build/Chandrabindu.app` by `scripts/build-app.sh`
-(`--install` copies to `~/Applications`). Designed for minimal time and clicks:
+(`--install` copies to `/Applications`, where the macOS app launcher lists it). Designed for minimal time and clicks:
 the status item shows the number of switches on, **⌃⌥H** (Carbon hotkey, no
 Accessibility permission) opens the panel with search focused (Return toggles
 the highlighted control or runs a routine), favourites and routines are one
