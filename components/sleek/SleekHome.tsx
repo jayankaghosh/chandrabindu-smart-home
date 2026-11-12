@@ -7,7 +7,7 @@ import { gridContainer } from "./motion";
 
 export type Section = "favourites" | "rooms" | "goodnight" | "routines" | "automations" | "shortcuts" | "switchGroups" | "usage" | "screensaver" | "insights" | "voice";
 
-export const SECTIONS: { key: Section; title: string; subtitle: string; icon: any; accent: string }[] = [
+const SECTIONS: { key: Section; title: string; subtitle: string; icon: any; accent: string }[] = [
   { key: "favourites", title: "Favourites", subtitle: "Your starred switches", icon: Star, accent: "from-amber-400 to-orange-500" },
   { key: "rooms", title: "Rooms", subtitle: "Browse by room", icon: LayoutGrid, accent: "from-brand-500 to-brand-400" },
   { key: "goodnight", title: "Goodnight", subtitle: "A calm walk round the house", icon: Moon, accent: "from-indigo-600 to-slate-700" },

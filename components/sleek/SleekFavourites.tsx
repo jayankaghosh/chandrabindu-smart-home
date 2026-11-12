@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, type ComponentType } from "react";
+import { useMemo } from "react";
 import { motion } from "framer-motion";
 import { Star } from "lucide-react";
 import type { Room } from "@/lib/types";
@@ -8,7 +8,7 @@ import type { DeviceStatusState } from "../useHomeData";
 import { favKey } from "../favKey";
 import { CONTROLLABLE } from "./labels";
 import { gridContainer, gridItem } from "./motion";
-import SleekControlTile, { type ControlTileProps } from "./SleekControlTile";
+import SleekControlTile from "./SleekControlTile";
 
 export default function SleekFavourites({
   rooms,
@@ -17,7 +17,6 @@ export default function SleekFavourites({
   isAdmin,
   onCommand,
   onToggleFavourite,
-  Tile = SleekControlTile,
 }: {
   rooms: Room[];
   favourites: Set<string>;
@@ -25,8 +24,6 @@ export default function SleekFavourites({
   isAdmin: boolean;
   onCommand: (deviceId: string, code: string, value: unknown) => void;
   onToggleFavourite: (deviceId: string, code: string) => void;
-  /** The control tile to render (another theme can supply its own). */
-  Tile?: ComponentType<ControlTileProps>;
 }) {
   const entries = useMemo(() => {
     const out: { key: string; deviceId: string; caption: string; accessible: boolean; fn: Room["devices"][number]["functions"][number] }[] = [];
@@ -71,7 +68,7 @@ export default function SleekFavourites({
         const value = statusByDevice[e.deviceId]?.values?.[e.fn.code];
         return (
           <motion.div key={e.key} variants={gridItem} className={e.fn.type === "Boolean" ? "" : "col-span-2"}>
-            <Tile
+            <SleekControlTile
               fn={e.fn}
               value={value}
               caption={e.accessible ? e.caption : `${e.caption} · 🔒`}

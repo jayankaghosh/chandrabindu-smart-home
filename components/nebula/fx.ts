@@ -148,3 +148,20 @@ export function prefersReducedMotion(): boolean {
     return false;
   }
 }
+
+/** "r g b" (0-255) from a 0..1 RGB triplet, for the --nb-hue CSS variable. */
+export function cssHue(h: [number, number, number]): string {
+  return h.map((v) => Math.round(v * 255)).join(" ");
+}
+
+// Ask the master control to open its all-on / all-off confirm (the command bar
+// uses this; the confirm itself stays in one place).
+const MASTER = "nebula-master";
+export function requestMaster(on: boolean) {
+  window.dispatchEvent(new CustomEvent<boolean>(MASTER, { detail: on }));
+}
+export function onMasterRequest(fn: (on: boolean) => void): () => void {
+  const h = (e: Event) => fn((e as CustomEvent<boolean>).detail);
+  window.addEventListener(MASTER, h);
+  return () => window.removeEventListener(MASTER, h);
+}

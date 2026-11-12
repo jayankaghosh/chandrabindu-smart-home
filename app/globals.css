@@ -205,7 +205,8 @@ input[type="range"]::-moz-range-thumb {
    WebGL sky (components/nebula/NebulaBackground.tsx) paints over this CSS sky,
    which is the fallback without WebGL and the backdrop of /settings. The
    overrides of the shared .card / .btn-* / .field / .tile-off classes re-skin
-   the Sleek feature screens Nebula reuses (routines, automations, usage...). */
+   the shared pieces Nebula hosts in its panels (the Manage editors, Insights,
+   Voice, screensaver settings), the safety overlays and /settings. */
 @property --nb-angle {
   syntax: "<angle>";
   initial-value: 0deg;
@@ -319,8 +320,8 @@ html[data-ui="nebula"] ::-webkit-scrollbar-thumb {
   background-clip: content-box;
 }
 
-/* Animated light running round a border (holo cards, lit tiles). Set
-   --nb-hue to an "r g b" triplet to colour it. */
+/* Animated light running round a border (the master control). Set --nb-hue
+   to an "r g b" triplet to colour it. */
 .nb-border {
   position: relative;
   isolation: isolate;
@@ -347,36 +348,10 @@ html[data-ui="nebula"] ::-webkit-scrollbar-thumb {
   animation: nb-spin 4.5s linear infinite;
   pointer-events: none;
 }
-.nb-border-idle::before {
-  opacity: 0.35;
-  animation-duration: 9s;
-}
-.nb-border-idle:hover::before,
-.nb-border-idle:focus-visible::before {
-  opacity: 1;
-  animation-duration: 3s;
-}
 @keyframes nb-spin {
   to {
     --nb-angle: 360deg;
   }
-}
-
-/* Cursor-tracked spotlight: set --mx / --my (px) on the element. */
-.nb-spot::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  border-radius: inherit;
-  background: radial-gradient(
-    260px circle at var(--mx, 50%) var(--my, 50%),
-    rgb(var(--nb-hue, var(--nb-cyan)) / 0.16),
-    transparent 60%
-  );
-  opacity: var(--spot, 0);
-  transition: opacity 0.3s;
-  pointer-events: none;
 }
 
 /* Flowing gradient text. */
@@ -462,17 +437,6 @@ html[data-ui="nebula"] ::-webkit-scrollbar-thumb {
     transform: translateX(100%);
   }
 }
-.nb-scan-y {
-  animation: nb-scan-y 2.8s linear infinite;
-}
-@keyframes nb-scan-y {
-  0% {
-    transform: translateY(-100%);
-  }
-  100% {
-    transform: translateY(100%);
-  }
-}
 .nb-blink {
   animation: nb-blink 1.6s ease-in-out infinite;
 }
@@ -491,23 +455,6 @@ html[data-ui="nebula"] ::-webkit-scrollbar-thumb {
   letter-spacing: 0.08em;
 }
 
-/* Nebula range slider (dimmers): a glowing fill driven by --nb-fill (0-100). */
-.nb-range {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 100%;
-  height: 10px;
-  border-radius: 9999px;
-  background:
-    linear-gradient(90deg, rgb(var(--nb-hue)) 0 calc(var(--nb-fill, 0) * 1%), transparent 0),
-    rgba(148, 163, 255, 0.14) !important;
-  box-shadow: 0 0 18px -4px rgb(var(--nb-hue) / calc(var(--nb-fill, 0) / 100));
-}
-.nb-range::-webkit-slider-thumb {
-  width: 26px !important;
-  height: 26px !important;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .nb-border::before,
   .nb-gradient-text,
@@ -517,8 +464,23 @@ html[data-ui="nebula"] ::-webkit-scrollbar-thumb {
   .nb-fan-spin,
   .nb-breathe,
   .nb-scan,
-  .nb-scan-y,
   .nb-blink {
     animation: none !important;
   }
+}
+
+/* Nebula constellation: a thread joining each control orb to the previous
+   one (orb cells are 96px wide with a 72px orb, laid out with an 8px gap). */
+.nb-thread > * {
+  position: relative;
+}
+.nb-thread > * + *::before {
+  content: "";
+  position: absolute;
+  top: 36px;
+  left: -20px;
+  width: 32px;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(148, 163, 255, 0.05), rgba(148, 163, 255, 0.4), rgba(148, 163, 255, 0.05));
+  pointer-events: none;
 }

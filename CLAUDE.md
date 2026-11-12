@@ -531,32 +531,45 @@ Persisted in `localStorage["ui-theme"]` per browser, **not** server-side.
 - **Bluetooth devices:** `lib/store.ts` sets `UiDevice.bluetooth` when the cloud
   name matches `/\b(ble|bluetooth)\b/i`. Both themes show "This is a BT device,
   cannot control from here" instead of controls (can't reach BLE over the LAN).
-- **Nebula** (`components/nebula/`): the animated showcase theme, always dark.
-  **Same features and rules as Sleek, by reuse, not copies:** `NebulaApp`
-  renders Sleek's feature screens (routines, automations, shortcuts, switch
-  groups, usage, screensaver settings, voice, insights, room detail incl. Edit
-  Mode sheets, favourites), Goodnight, screensaver, Assistant, Mode FAB and every
-  safety overlay (ProtectedAlert, LockedOverlay, SuperProtectedGate). Shared
-  shell logic lives in `components/sleek/nav.ts` (screen stack, titles,
-  `houseStats`, `roomPills`; Nebula persists its stack to `nebula-nav`) and
-  `sleek/masterApi.ts` (`runMaster`). `SleekRoomDetail` / `SleekFavourites`
-  take a `Tile` prop (`ControlTileProps` from `SleekControlTile`); Nebula passes
-  `NebulaControlTile`, which keeps the protected confirm, super-protected lock,
-  favourite star and group badge. Nebula's own pieces: `NebulaBackground`
-  (WebGL fbm nebula + stars shader; reacts to `energy` = share of switches on,
-  the pointer, `fx.ts` pulses (a coloured shockwave from a toggled tile) and
-  warps (navigation surge); half resolution with adaptive scaling, paused when
-  hidden, one still frame under reduced motion, CSS sky fallback without
-  WebGL), `NebulaBoot` (once per tab session, z-[85], below lock/gate),
-  `EnergyCore` (home reactor ring), `HoloCard` (3D tilt + spotlight + running
-  border), `ScrambleText`, `CursorAura` (mouse only), `NebulaMasterControl`.
-  `fx.ts` also synthesises UI sound with WebAudio (header mute button,
-  `localStorage["nebula-sound"]`) and haptics. Styling is in `app/globals.css`
-  under `html[data-ui="nebula"]`, which also re-skins the shared `.card`,
-  `.btn-*`, `.field`, `.tile-off` so reused Sleek screens (and /settings) look
-  native. framer runs under `MotionConfig reducedMotion="user"`.
-  Keep new Sleek features reachable from Nebula: add the screen to `nav.ts` and
-  render it in both shells.
+- **Nebula** (`components/nebula/`): the animated showcase theme, always dark,
+  with its **own structure (an orbital deck), not Sleek's nav stack**:
+  - **Home = `OrbitScene`:** the `EnergyCore` is the sun and rooms are planets
+    (`Planet`, warm when on, rose when locked) on two counter-rotating elliptical
+    orbits with depth (planets pass behind the core). Drag/scroll spins it with
+    inertia, hover holds it, tap flies in. Phones (<768px) get a planet carousel.
+  - **Room = `RoomFocus`:** the planet docks as a readout (hold-to-power-down,
+    Edit Mode rename/lock), each device is a constellation of `ControlOrb`s on
+    a thread (`.nb-thread`). Orbs: tap toggles; fan levels/modes open a radial
+    dial; dimmers a 270° ring dial; long-press/right-click = favourite/edit menu;
+    same protected / super-protected / child-lock / offline rules as the tiles.
+  - **Everything else = `Dock` → `NebulaPanel`** (holographic window, not a
+    page): native Favourites, Routines, Automations (WHEN/IF/THEN chips via
+    `panels/describe.ts`), Shortcuts, Switch Groups (all-on/off), Usage. Admins
+    in Edit Mode get a **Live / Manage** tab on Routines, Automations, Shortcuts
+    and Switch Groups; Manage hosts the shared Sleek editors (no duplicated
+    rule-authoring logic). Insights, Voice and screensaver settings are the
+    shared components inside panels. Goodnight opens the shared overlay.
+  - **`CommandBar` (Cmd/Ctrl+K):** every word must match; jump to a room, run a
+    routine/shortcut, open a system, master all-on/off (via `requestMaster`, the
+    confirm stays in `NebulaMasterControl`), or flip a switch ("kitchen light
+    off"). On phones it also holds sound / settings / sign-out (HUD is slimmer).
+  - **Shell (`NebulaApp`):** view `{room, panel}` persisted to
+    `localStorage["nebula-view"]`; fly-in/out scale from the tapped planet;
+    Escape closes popover → panel (not in Manage) → room. `Hud` has Run/Edit.
+  - **Effects:** `NebulaBackground` (WebGL fbm nebula + stars; reacts to
+    `energy` = share on, the pointer, `fx.ts` pulses and warps; half resolution,
+    adaptive, paused when hidden, still frame under reduced motion), `NebulaBoot`
+    (once per tab session, z-[85]), `CursorAura`, `ScrambleText`, WebAudio UI
+    sound (`localStorage["nebula-sound"]`) and haptics.
+  - **Gotchas:** popovers, confirms and Sleek sheets opened from Nebula are
+    **portalled to `document.body`** (Framer transforms/filters on ancestors
+    would trap `fixed` children); the panel keeps its blur on a background layer
+    and no resting transform for the same reason. Don't put Tailwind translate
+    classes on a `motion.*` element that Framer also transforms (Framer's inline
+    transform wins); centre it with a wrapper or Framer `x`/`y`.
+  - Shared with Sleek: `sleek/nav.ts` (`houseStats`, `isCountable`, `greeting`),
+    `sleek/masterApi.ts`, `SleekRoomList` (`roomIcon`, `roomOnCount`), `labels.ts`.
+    New Sleek features need a Nebula surface too (a dock panel or the room view).
 - **Backgrounds** (`app/globals.css`, `body::before`): theme-specific,
   `html[data-ui="classic"]` → `/background/classic.jpg`, `sleek` →
   `/background/sleek.jpg`, both falling back to `/background.jpg` (a missing
