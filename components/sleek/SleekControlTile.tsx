@@ -7,24 +7,10 @@ import type { DeviceFunction } from "@/lib/types";
 import { controlKind, iconForControl, KIND_ON_GRADIENT, KIND_GLOW } from "@/lib/icons";
 import { enumLabel, isOn, valueLabel } from "./labels";
 
-export interface ControlTileProps {
-  fn: DeviceFunction;
-  value: unknown;
-  disabled?: boolean;
-  isProtected?: boolean;
-  isAdmin?: boolean;
-  isFavourite?: boolean;
-  inGroup?: boolean;
-  onCommand: (value: unknown) => void;
-  onToggleFavourite?: () => void;
-  caption?: string;
-}
-
 // The single, consistent control tile used across the Sleek theme (research:
 // one tile type for 80%+ of the UI). Boolean → big lit toggle; Enum → big
 // segmented buttons; Integer → slider. Colour communicates state; a spring
 // press gives feedback. A favourite star and protected-confirm are built in.
-// Another theme can swap in its own tile with the same props (Nebula does).
 export default function SleekControlTile({
   fn,
   value,
@@ -36,7 +22,18 @@ export default function SleekControlTile({
   onCommand,
   onToggleFavourite,
   caption,
-}: ControlTileProps) {
+}: {
+  fn: DeviceFunction;
+  value: unknown;
+  disabled?: boolean;
+  isProtected?: boolean;
+  isAdmin?: boolean;
+  isFavourite?: boolean;
+  inGroup?: boolean;
+  onCommand: (value: unknown) => void;
+  onToggleFavourite?: () => void;
+  caption?: string;
+}) {
   const [pending, setPending] = useState<unknown>(null); // protected confirm value
   const kind = controlKind(fn.name, fn.code);
   const Icon = iconForControl(kind);

@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Power, PowerOff, Zap, X, Loader2 } from "lucide-react";
 import { runMaster } from "../sleek/masterApi";
-import { HUES, emitPulse, emitWarp, haptic, sfx } from "./fx";
+import { HUES, emitPulse, emitWarp, haptic, onMasterRequest, sfx } from "./fx";
 
 // Master all-on / all-off as a reactor button (bottom-left on every screen).
 // Same rules as Sleek's: both actions confirm, protected controls stay on,
@@ -14,6 +14,8 @@ export default function NebulaMasterControl({ onDone, raised = false }: { onDone
   const [confirm, setConfirm] = useState<null | boolean>(null);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string | null>(null);
+  // The command bar asks for the same confirm instead of running it itself.
+  useEffect(() => onMasterRequest((on) => setConfirm(on)), []);
 
   async function run(on: boolean) {
     setBusy(true);

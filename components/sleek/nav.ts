@@ -1,6 +1,6 @@
-// The home navigation model shared by the Sleek and Nebula shells: the screen
-// stack (persisted per theme so a refresh lands on the same screen), screen
-// titles, the greeting and the house-wide figures shown on home.
+// Sleek's home navigation model (the screen stack, persisted so a refresh lands
+// on the same screen, and screen titles), plus the greeting and house-wide
+// figures that Nebula's shell shares.
 import type { Room } from "@/lib/types";
 import type { DeviceStatusState } from "../useHomeData";
 import { countsAsOn, isFanLevel } from "@/lib/onCount";

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ComponentType } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Lock, LockOpen, Loader2, Bluetooth, Pencil, Check, X } from "lucide-react";
 import type { Room, UiDevice } from "@/lib/types";
@@ -9,7 +9,7 @@ import { favKey } from "../favKey";
 import { isChildLock } from "@/lib/panelLock";
 import { CONTROLLABLE } from "./labels";
 import { gridContainer, gridItem } from "./motion";
-import SleekControlTile, { type ControlTileProps } from "./SleekControlTile";
+import SleekControlTile from "./SleekControlTile";
 import PanelLockToggle from "../PanelLockToggle";
 import SleekDeviceEditSheet from "./SleekDeviceEditSheet";
 import SleekRoomLockSheet from "./SleekRoomLockSheet";
@@ -25,7 +25,6 @@ export default function SleekRoomDetail({
   editMode = false,
   allRooms = [],
   onChanged,
-  Tile = SleekControlTile,
 }: {
   room: Room;
   statusByDevice: Record<string, DeviceStatusState>;
@@ -37,8 +36,6 @@ export default function SleekRoomDetail({
   editMode?: boolean;
   allRooms?: { id: string; name: string }[];
   onChanged?: () => void;
-  /** The control tile to render (another theme can supply its own). */
-  Tile?: ComponentType<ControlTileProps>;
 }) {
   const [editing, setEditing] = useState<UiDevice | null>(null);
   const [lockOpen, setLockOpen] = useState(false);
@@ -132,7 +129,7 @@ export default function SleekRoomDetail({
             >
               {controls.map((fn) => (
                 <motion.div key={fn.code} variants={gridItem} className={fn.type === "Boolean" ? "" : "col-span-2"}>
-                  <Tile
+                  <SleekControlTile
                     fn={fn}
                     value={values[fn.code]}
                     disabled={reachable === false || (!!fn.protected && !isAdmin)}

@@ -1,80 +1,99 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, MotionConfig, motion } from "framer-motion";
-import { ChevronLeft, Home as HomeIcon, LogOut, Settings as SettingsIcon, Loader2, CloudDownload, Volume2, VolumeX } from "lucide-react";
+import { Loader2, Settings as SettingsIcon, LogOut, Volume2, VolumeX } from "lucide-react";
 import { useHomeData } from "../useHomeData";
+import { favKey } from "../favKey";
 import Assistant from "../Assistant";
 import Insights from "../Insights";
 import ProtectedAlert from "../ProtectedAlert";
 import LockedOverlay from "../LockedOverlay";
 import SuperProtectedGate from "../SuperProtectedGate";
 import { readEditMode, setEditMode as persistEditMode } from "../sleek/editMode";
-import { greeting, houseStats, loadNav, roomPills, saveNav, screenTitle, type Screen } from "../sleek/nav";
-import type { Section } from "../sleek/SleekHome";
-import SleekModeFab from "../sleek/SleekModeFab";
+import { greeting, houseStats } from "../sleek/nav";
 import SleekGoodnight from "../sleek/SleekGoodnight";
-import SleekFavourites from "../sleek/SleekFavourites";
-import SleekRoomDetail from "../sleek/SleekRoomDetail";
+import SleekScreensaver from "../sleek/SleekScreensaver";
+import SleekScreensaverSettings from "../sleek/SleekScreensaverSettings";
+import SleekVoice from "../sleek/SleekVoice";
 import SleekRoutines from "../sleek/SleekRoutines";
 import SleekAutomations from "../sleek/SleekAutomations";
 import SleekShortcuts from "../sleek/SleekShortcuts";
 import SleekSwitchGroups from "../sleek/SleekSwitchGroups";
-import SleekUsage from "../sleek/SleekUsage";
-import SleekScreensaverSettings from "../sleek/SleekScreensaverSettings";
-import SleekScreensaver from "../sleek/SleekScreensaver";
-import SleekVoice from "../sleek/SleekVoice";
 import NebulaBackground from "./NebulaBackground";
 import NebulaBoot from "./NebulaBoot";
 import CursorAura from "./CursorAura";
-import NebulaHome from "./NebulaHome";
-import NebulaRoomList from "./NebulaRoomList";
-import NebulaRoomSwitcher from "./NebulaRoomSwitcher";
-import NebulaControlTile from "./NebulaControlTile";
+import Hud from "./Hud";
+import Dock, { dockItem, type DockKey, type PanelKind } from "./Dock";
+import OrbitScene from "./OrbitScene";
+import RoomFocus from "./RoomFocus";
+import NebulaPanel, { ManageTabs } from "./NebulaPanel";
+import CommandBar, { type CommandAction } from "./CommandBar";
 import NebulaMasterControl from "./NebulaMasterControl";
-import ScrambleText from "./ScrambleText";
+import RoutinesPanel from "./panels/RoutinesPanel";
+import { AutomationsPanel, ShortcutsPanel } from "./panels/RulesPanels";
+import { FavouritesPanel, GroupsPanel } from "./panels/ControlPanels";
+import UsagePanel from "./panels/UsagePanel";
 import { SOUND_EVENT, emitWarp, setSoundOn, sfx, soundOn } from "./fx";
-import { depthTransition, depthVariants } from "./motion";
 
-const NAV_KEY = "nebula-nav";
+const VIEW_KEY = "nebula-view";
+const PANELS: PanelKind[] = ["favourites", "routines", "automations", "shortcuts", "switchGroups", "usage", "insights", "voice", "screensaver"];
+/** Panels whose authoring (admin, Edit Mode) reuses the shared editors. */
+const MANAGED: PanelKind[] = ["routines", "automations", "shortcuts", "switchGroups"];
 
-// The Nebula experience: the same features, data and rules as Sleek (it reuses
-// Sleek's feature screens and every safety overlay), wrapped in a cinematic
-// shell: a live WebGL sky that reacts to the house, a boot sequence, depth
-// transitions with a warp surge, holographic tiles and synthesised sound.
+type View = { room: string | null; panel: PanelKind | null };
+type Anchor = { x: number; y: number };
+
+function loadView(): View {
+  try {
+    const v = JSON.parse(localStorage.getItem(VIEW_KEY) || "{}");
+    return {
+      room: typeof v.room === "string" ? v.room : null,
+      panel: PANELS.includes(v.panel) ? v.panel : null,
+    };
+  } catch {
+    return { room: null, panel: null };
+  }
+}
+
+// Nebula: an orbital deck. Home is a solar system (rooms as planets round the
+// energy core); tapping a planet flies into that room. Everything else lives
+// in the dock and opens as holographic panels over the scene, and the command
+// bar (Cmd/Ctrl+K) drives anything by typing. Same data, APIs and safety rules
+// as the other themes; the safety overlays are the shared ones.
 export default function NebulaApp({ role }: { role: "admin" | "user"; username: string }) {
   const isAdmin = role === "admin";
   const router = useRouter();
   const data = useHomeData();
   const { rooms, statusByDevice, favourites } = data;
 
-  const [stack, setStack] = useState<Screen[]>(() => loadNav(NAV_KEY));
-  const [dir, setDir] = useState(1);
-  const screen = stack[stack.length - 1];
-  const atHome = screen.k === "home";
+  const [view, setView] = useState<View>(loadView);
+  const [origin, setOrigin] = useState<Anchor>({ x: 0, y: 0 });
+  const [commandOpen, setCommandOpen] = useState(false);
+  const [manage, setManage] = useState(false);
+  const [goodnightOpen, setGoodnightOpen] = useState(false);
+  const [protDismissed, setProtDismissed] = useState(false);
 
-  useEffect(() => saveNav(NAV_KEY, stack), [stack]);
-
-  // Each screen starts at the top (the depth transition reads as a new scene).
-  const screenKey = screen.k === "room" ? `room:${screen.roomId}` : screen.k;
   useEffect(() => {
-    window.scrollTo({ top: 0 });
-  }, [screenKey]);
+    try {
+      localStorage.setItem(VIEW_KEY, JSON.stringify(view));
+    } catch {
+      /* ignore */
+    }
+  }, [view]);
 
   // Nebula is always dark, whatever this device's light/dark choice is.
   useEffect(() => {
     document.documentElement.classList.add("dark");
     document.documentElement.dataset.ui = "nebula";
+    setOrigin({ x: innerWidth / 2, y: innerHeight / 2 });
   }, []);
 
-  // If a restored room no longer exists, drop that screen gracefully.
+  // A restored room that no longer exists drops back to the orbit.
   useEffect(() => {
-    if (screen.k === "room" && rooms && !rooms.find((r) => r.id === screen.roomId)) {
-      setStack((st) => (st.length > 1 ? st.slice(0, -1) : [{ k: "home" }]));
-    }
-  }, [screen, rooms]);
+    if (view.room && rooms && !rooms.find((r) => r.id === view.room)) setView((v) => ({ ...v, room: null }));
+  }, [view.room, rooms]);
 
   const [greet, setGreet] = useState("");
   useEffect(() => setGreet(greeting()), []);
@@ -87,8 +106,6 @@ export default function NebulaApp({ role }: { role: "admin" | "user"; username: 
     return () => window.removeEventListener(SOUND_EVENT, sync);
   }, []);
 
-  const [protDismissed, setProtDismissed] = useState(false);
-
   const [editMode, setEditModeState] = useState(false);
   useEffect(() => {
     if (isAdmin) setEditModeState(readEditMode());
@@ -96,8 +113,23 @@ export default function NebulaApp({ role }: { role: "admin" | "user"; username: 
   const toggleEditMode = (on: boolean) => {
     setEditModeState(on);
     persistEditMode(on);
+    if (!on) setManage(false);
   };
-  const [goodnightOpen, setGoodnightOpen] = useState(false);
+
+  // Which controls belong to a switch group (badge on the orbs). Re-read when
+  // a panel closes, since the groups may have just been edited.
+  const [groupedKeys, setGroupedKeys] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (view.panel) return;
+    fetch("/api/switch-groups")
+      .then((r) => r.json())
+      .then((d) => {
+        const set = new Set<string>();
+        for (const g of d.groups ?? []) for (const m of g.members ?? []) set.add(favKey(m.deviceId, m.code));
+        setGroupedKeys(set);
+      })
+      .catch(() => {});
+  }, [view.panel]);
 
   const [syncing, setSyncing] = useState(false);
   async function syncFromCloud() {
@@ -112,42 +144,51 @@ export default function NebulaApp({ role }: { role: "admin" | "user"; username: 
     }
   }
 
-  const go = (s: Screen) => {
-    setDir(1);
+  const enterRoom = useCallback((roomId: string, at?: Anchor) => {
+    if (at) setOrigin(at);
     emitWarp(1);
     sfx("nav");
-    setStack((st) => [...st, s]);
-  };
-  const back = () => {
-    setDir(-1);
+    window.scrollTo({ top: 0 });
+    setView((v) => ({ ...v, room: roomId }));
+  }, []);
+  const leaveRoom = useCallback(() => {
     emitWarp(-1);
     sfx("back");
-    setStack((st) => (st.length > 1 ? st.slice(0, -1) : st));
-  };
-  const goHome = () => {
-    setDir(-1);
-    emitWarp(-1);
-    sfx("back");
-    setStack([{ k: "home" }]);
-  };
-  // Jump to another room in place, so Back still returns to the Rooms list.
-  const switchRoom = (roomId: string) => {
-    setStack((st) => {
-      const top = st[st.length - 1];
-      if (top.k !== "room" || top.roomId === roomId) return st;
-      const list = rooms ?? [];
-      setDir(list.findIndex((r) => r.id === roomId) >= list.findIndex((r) => r.id === top.roomId) ? 1 : -1);
-      return [...st.slice(0, -1), { k: "room", roomId }];
-    });
-  };
+    setView((v) => ({ ...v, room: null }));
+  }, []);
+  const openPanel = useCallback((k: DockKey) => {
+    if (k === "search") return setCommandOpen(true);
+    if (k === "goodnight") return setGoodnightOpen(true);
+    setManage(false);
+    setView((v) => ({ ...v, panel: v.panel === k ? null : k }));
+  }, []);
+  const closePanel = useCallback(() => setView((v) => ({ ...v, panel: null })), []);
+
+  // Keyboard: Cmd/Ctrl+K opens the command bar; Escape closes the panel, then
+  // leaves the room. Popovers and the command bar catch their own Escape.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setCommandOpen((o) => !o);
+        sfx("nav");
+        return;
+      }
+      if (e.key !== "Escape" || commandOpen || goodnightOpen) return;
+      if (view.panel) {
+        // Manage hosts editors with their own dialogs; don't close under them.
+        if (!manage) closePanel();
+      } else if (view.room) leaveRoom();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [commandOpen, goodnightOpen, view.panel, view.room, manage, closePanel, leaveRoom]);
 
   const stats = useMemo(() => houseStats(rooms, statusByDevice), [rooms, statusByDevice]);
   const energy = stats.switchCount > 0 ? stats.onCount / stats.switchCount : 0;
-
-  const roomName = (id: string) => (rooms ?? []).find((r) => r.id === id)?.name;
-  const currentRoom = screen.k === "room" ? (rooms ?? []).find((r) => r.id === screen.roomId) : undefined;
-  const title = screenTitle(screen, data.houseName, currentRoom?.name);
-  const crumbs = ["Home", ...stack.slice(1).map((s) => screenTitle(s, data.houseName, s.k === "room" ? roomName(s.roomId) : undefined))];
+  const currentRoom = view.room ? (rooms ?? []).find((r) => r.id === view.room) : undefined;
+  const canManage = isAdmin && editMode && !!view.panel && MANAGED.includes(view.panel);
+  const showManage = canManage && manage;
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -155,8 +196,56 @@ export default function NebulaApp({ role }: { role: "admin" | "user"; username: 
     router.refresh();
   }
 
-  const hudBtn =
-    "flex h-10 w-10 items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.04] text-slate-300 transition hover:border-cyan-300/50 hover:text-white hover:shadow-[0_0_20px_-6px_rgba(34,211,238,0.8)] active:scale-90 disabled:opacity-50";
+  const toggleSound = () => {
+    setSoundOn(!sound);
+    if (!sound) setTimeout(() => sfx("on"), 0);
+  };
+  const shellActions: CommandAction[] = [
+    { id: "x:sound", title: sound ? "Mute sounds" : "Unmute sounds", hint: "Interface", icon: sound ? VolumeX : Volume2, run: toggleSound },
+    { id: "x:settings", title: "Settings", hint: "Open", icon: SettingsIcon, run: () => router.push("/settings") },
+    { id: "x:logout", title: "Log out", hint: "Account", icon: LogOut, run: logout },
+  ];
+
+  const controlProps = {
+    rooms: rooms ?? [],
+    statusByDevice,
+    isAdmin,
+    favourites,
+    groupedKeys,
+    onCommand: data.sendCommand,
+    onToggleFavourite: data.toggleFavourite,
+  };
+
+  function panelBody(k: PanelKind) {
+    if (showManage) {
+      if (k === "routines") return <SleekRoutines rooms={rooms ?? []} isAdmin editMode />;
+      if (k === "automations") return <SleekAutomations rooms={rooms ?? []} isAdmin editMode />;
+      if (k === "shortcuts") return <SleekShortcuts rooms={rooms ?? []} isAdmin editMode />;
+      if (k === "switchGroups") return <SleekSwitchGroups rooms={rooms ?? []} isAdmin editMode />;
+    }
+    switch (k) {
+      case "favourites":
+        return <FavouritesPanel {...controlProps} />;
+      case "routines":
+        return <RoutinesPanel />;
+      case "automations":
+        return <AutomationsPanel rooms={rooms ?? []} isAdmin={isAdmin} />;
+      case "shortcuts":
+        return <ShortcutsPanel rooms={rooms ?? []} />;
+      case "switchGroups":
+        return <GroupsPanel {...controlProps} />;
+      case "usage":
+        return <UsagePanel />;
+      case "insights":
+        return <Insights isAdmin={isAdmin} />;
+      case "voice":
+        return <SleekVoice />;
+      case "screensaver":
+        return <SleekScreensaverSettings isAdmin={isAdmin} />;
+    }
+  }
+
+  const fly = `${origin.x}px ${origin.y}px`;
 
   return (
     <MotionConfig reducedMotion="user">
@@ -164,168 +253,116 @@ export default function NebulaApp({ role }: { role: "admin" | "user"; username: 
         <NebulaBackground energy={energy} />
         <CursorAura />
 
-        {/* HUD header: a floating capsule */}
-        <header className="sticky top-0 z-20 px-3 pt-3 sm:px-6">
-          <motion.div
-            initial={{ y: -40, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ type: "spring", stiffness: 200, damping: 24, delay: 0.1 }}
-            className="relative mx-auto flex w-full max-w-[1400px] items-center justify-between gap-3 overflow-hidden rounded-full border border-white/[0.08] bg-[rgba(6,8,22,0.55)] p-2 shadow-[0_20px_50px_-30px_rgba(0,0,0,0.9)] backdrop-blur-2xl"
-          >
-            <span className="pointer-events-none absolute inset-x-0 bottom-0 h-px overflow-hidden">
-              <span className="nb-scan absolute inset-y-0 w-1/4 bg-gradient-to-r from-transparent via-cyan-300/80 to-transparent" />
-            </span>
-            <div className="flex min-w-0 items-center gap-3">
-              {atHome ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src="/logo.png" alt="Logo" className="h-10 w-10 shrink-0 rounded-full object-cover shadow-[0_0_20px_rgba(34,211,238,0.45)]" />
-              ) : (
-                <button onClick={back} aria-label="Back" className={hudBtn}>
-                  <ChevronLeft size={20} />
-                </button>
-              )}
-              <nav aria-label="Breadcrumb" className="nb-mono flex min-w-0 items-center gap-1.5 overflow-hidden text-[11px] uppercase">
-                {atHome ? (
-                  <span className="truncate text-slate-300">
-                    <span className="text-cyan-300">Nebula</span> <span className="text-slate-600">//</span> {data.houseName}
-                  </span>
-                ) : (
-                  crumbs.map((c, i) => (
-                    <span key={i} className={`min-w-0 items-center gap-1.5 ${i === crumbs.length - 1 ? "flex text-white" : "hidden text-slate-500 sm:flex"}`}>
-                      {i > 0 && <span className="text-slate-600">/</span>}
-                      <span className="truncate">{c}</span>
-                    </span>
-                  ))
-                )}
-              </nav>
-            </div>
-            <div className="flex shrink-0 items-center gap-1.5">
-              <button
-                onClick={() => {
-                  setSoundOn(!sound);
-                  if (!sound) setTimeout(() => sfx("on"), 0);
-                }}
-                aria-label={sound ? "Mute interface sounds" : "Unmute interface sounds"}
-                title={sound ? "Sounds on" : "Sounds off"}
-                className={hudBtn}
-              >
-                {sound ? <Volume2 size={16} /> : <VolumeX size={16} />}
-              </button>
-              {atHome ? (
-                <>
-                  {isAdmin && editMode && (
-                    <button onClick={syncFromCloud} disabled={syncing} aria-label="Sync from cloud" title="Sync from cloud" className={hudBtn}>
-                      {syncing ? <Loader2 size={16} className="animate-spin" /> : <CloudDownload size={16} />}
-                    </button>
-                  )}
-                  <Link href="/settings" aria-label="Settings" className={hudBtn}>
-                    <SettingsIcon size={16} />
-                  </Link>
-                  <button onClick={logout} aria-label="Log out" className={hudBtn}>
-                    <LogOut size={16} />
-                  </button>
-                </>
-              ) : (
-                <button onClick={goHome} aria-label="Home" className={hudBtn}>
-                  <HomeIcon size={17} />
-                </button>
-              )}
-            </div>
-          </motion.div>
-        </header>
+        <Hud
+          houseName={data.houseName}
+          greet={greet}
+          live={data.live}
+          offline={stats.offline}
+          isAdmin={isAdmin}
+          editMode={editMode}
+          onEditMode={toggleEditMode}
+          syncing={syncing}
+          onSync={syncFromCloud}
+          sound={sound}
+          onSound={toggleSound}
+          onCommand={() => setCommandOpen(true)}
+          onLogout={logout}
+        />
 
-        {screen.k === "room" && (
-          <NebulaRoomSwitcher rooms={roomPills(rooms, statusByDevice)} activeId={screen.roomId} onSwitch={switchRoom} />
+        {!rooms && !data.error ? (
+          <div className="fixed inset-0 flex flex-col items-center justify-center gap-3 text-cyan-200/70">
+            <Loader2 size={26} className="animate-spin" />
+            <span className="nb-mono text-[11px] uppercase">Linking</span>
+          </div>
+        ) : data.error ? (
+          <p className="pt-40 text-center text-red-400">{data.error}</p>
+        ) : (
+          <AnimatePresence initial={false}>
+            {!currentRoom ? (
+              <motion.div
+                key="orbit"
+                style={{ transformOrigin: fly }}
+                initial={{ opacity: 0, scale: 2.4, filter: "blur(16px)" }}
+                animate={{ opacity: 1, scale: 1, filter: "blur(0px)", transitionEnd: { filter: "none" } }}
+                exit={{ opacity: 0, scale: 2.8, filter: "blur(18px)" }}
+                transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+                className="fixed inset-0"
+              >
+                <OrbitScene
+                  rooms={rooms ?? []}
+                  statusByDevice={statusByDevice}
+                  onCount={stats.onCount}
+                  switchCount={stats.switchCount}
+                  live={data.live}
+                  onEnter={enterRoom}
+                />
+              </motion.div>
+            ) : (
+              <motion.div
+                key={`room:${currentRoom.id}`}
+                style={{ transformOrigin: fly }}
+                initial={{ opacity: 0, scale: 0.5 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.55, filter: "blur(10px)" }}
+                transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+                className="pt-24"
+              >
+                <RoomFocus
+                  room={currentRoom}
+                  rooms={rooms ?? []}
+                  statusByDevice={statusByDevice}
+                  isAdmin={isAdmin}
+                  editMode={editMode}
+                  favourites={favourites}
+                  groupedKeys={groupedKeys}
+                  onCommand={data.sendCommand}
+                  onToggleFavourite={data.toggleFavourite}
+                  onChanged={data.reload}
+                  onBack={leaveRoom}
+                  onSwitchRoom={(id) => enterRoom(id)}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
         )}
 
-        <main className="mx-auto w-full max-w-[1400px] px-4 pb-28 pt-8 sm:px-6">
-          {!rooms && !data.error ? (
-            <div className="flex flex-col items-center justify-center gap-3 py-24 text-cyan-200/70">
-              <Loader2 size={26} className="animate-spin" />
-              <span className="nb-mono text-[11px] uppercase">Linking</span>
-            </div>
-          ) : data.error ? (
-            <p className="py-16 text-center text-red-400">{data.error}</p>
-          ) : (
-            <AnimatePresence mode="wait" custom={dir} initial={false}>
-              <motion.div
-                key={screenKey}
-                custom={dir}
-                variants={depthVariants}
-                initial="enter"
-                animate="center"
-                exit="exit"
-                transition={depthTransition}
-              >
-                {!atHome && (
-                  <div className="mb-7">
-                    <h1 className="nb-gradient-text text-4xl font-semibold tracking-tight sm:text-5xl">
-                      <ScrambleText text={title} duration={500} />
-                    </h1>
-                    <div className="mt-3 h-px w-full max-w-md overflow-hidden bg-gradient-to-r from-cyan-300/40 via-violet-400/30 to-transparent">
-                      <span className="nb-scan block h-full w-1/3 bg-gradient-to-r from-transparent via-white to-transparent" />
-                    </div>
-                  </div>
-                )}
-                {screen.k === "home" && (
-                  <NebulaHome
-                    houseName={data.houseName}
-                    greet={greet}
-                    onCount={stats.onCount}
-                    switchCount={stats.switchCount}
-                    offline={stats.offline}
-                    roomCount={stats.roomCount}
-                    deviceCount={stats.deviceCount}
-                    live={data.live}
-                    rooms={rooms ?? []}
-                    statusByDevice={statusByDevice}
-                    onOpen={(s: Section) => (s === "goodnight" ? setGoodnightOpen(true) : go({ k: s } as Screen))}
-                    onOpenRoom={(roomId) => go({ k: "room", roomId })}
-                  />
-                )}
-                {screen.k === "favourites" && (
-                  <SleekFavourites
-                    rooms={rooms ?? []}
-                    favourites={favourites}
-                    statusByDevice={statusByDevice}
-                    isAdmin={isAdmin}
-                    onCommand={data.sendCommand}
-                    onToggleFavourite={data.toggleFavourite}
-                    Tile={NebulaControlTile}
-                  />
-                )}
-                {screen.k === "rooms" && (
-                  <NebulaRoomList rooms={rooms ?? []} statusByDevice={statusByDevice} onOpenRoom={(roomId) => go({ k: "room", roomId })} />
-                )}
-                {screen.k === "room" && currentRoom && (
-                  <SleekRoomDetail
-                    room={currentRoom}
-                    statusByDevice={statusByDevice}
-                    isAdmin={isAdmin}
-                    favourites={favourites}
-                    onCommand={data.sendCommand}
-                    onToggleFavourite={data.toggleFavourite}
-                    onUnlocked={data.reload}
-                    editMode={editMode}
-                    allRooms={(rooms ?? []).map((r) => ({ id: r.id, name: r.name }))}
-                    onChanged={data.reload}
-                    Tile={NebulaControlTile}
-                  />
-                )}
-                {screen.k === "routines" && <SleekRoutines rooms={rooms ?? []} isAdmin={isAdmin} editMode={editMode} />}
-                {screen.k === "automations" && <SleekAutomations rooms={rooms ?? []} isAdmin={isAdmin} editMode={editMode} />}
-                {screen.k === "shortcuts" && <SleekShortcuts rooms={rooms ?? []} isAdmin={isAdmin} editMode={editMode} />}
-                {screen.k === "switchGroups" && <SleekSwitchGroups rooms={rooms ?? []} isAdmin={isAdmin} editMode={editMode} />}
-                {screen.k === "usage" && <SleekUsage />}
-                {screen.k === "screensaver" && <SleekScreensaverSettings isAdmin={isAdmin} />}
-                {screen.k === "voice" && <SleekVoice />}
-                {screen.k === "insights" && <Insights isAdmin={isAdmin} />}
-              </motion.div>
-            </AnimatePresence>
+        <AnimatePresence>
+          {view.panel && (
+            <NebulaPanel
+              key={view.panel}
+              title={dockItem(view.panel).label}
+              icon={dockItem(view.panel).icon}
+              hue={dockItem(view.panel).hue}
+              wide={showManage || view.panel === "insights"}
+              tabs={canManage ? <ManageTabs manage={manage} onChange={setManage} /> : undefined}
+              onClose={closePanel}
+            >
+              {panelBody(view.panel)}
+            </NebulaPanel>
           )}
-        </main>
+        </AnimatePresence>
 
+        <Dock active={view.panel} onPick={openPanel} />
+        <NebulaMasterControl onDone={data.reload} />
         <Assistant available={data.aiAvailable} big />
+
+        <AnimatePresence>
+          {commandOpen && rooms && (
+            <CommandBar
+              rooms={rooms}
+              statusByDevice={statusByDevice}
+              isAdmin={isAdmin}
+              onClose={() => setCommandOpen(false)}
+              onEnterRoom={(id) => {
+                setView((v) => ({ ...v, panel: null }));
+                enterRoom(id);
+              }}
+              onOpen={openPanel}
+              onCommand={data.sendCommand}
+              actions={shellActions}
+            />
+          )}
+        </AnimatePresence>
 
         {data.protectedOff.length > 0 && !protDismissed && (
           <ProtectedAlert
@@ -334,9 +371,6 @@ export default function NebulaApp({ role }: { role: "admin" | "user"; username: 
             onDismiss={() => setProtDismissed(true)}
           />
         )}
-
-        <NebulaMasterControl onDone={data.reload} raised={isAdmin} />
-        {isAdmin && <SleekModeFab editMode={editMode} onChange={toggleEditMode} />}
         {goodnightOpen && rooms && (
           <SleekGoodnight
             rooms={rooms}

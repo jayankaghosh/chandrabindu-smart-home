@@ -8,7 +8,7 @@ const TICKS = 72;
 // The home "reactor": a breathing orb inside rotating rings. The tick ring and
 // arc fill with the share of switches on; the orb burns brighter as the house
 // wakes up. The centre counter rolls to the live on-count.
-export default function EnergyCore({ on, total, live }: { on: number; total: number; live: boolean }) {
+export default function EnergyCore({ on, total, live, className = "w-[min(78vw,300px)]" }: { on: number; total: number; live?: boolean; className?: string }) {
   const frac = total > 0 ? Math.min(1, on / total) : 0;
   const count = useMotionValue(on);
   const shown = useTransform(count, (v) => Math.round(v).toString());
@@ -21,7 +21,7 @@ export default function EnergyCore({ on, total, live }: { on: number; total: num
   const glow = 0.25 + frac * 0.75;
 
   return (
-    <div className="relative mx-auto aspect-square w-[min(78vw,300px)]">
+    <div className={`relative mx-auto aspect-square ${className}`}>
       {/* Halo */}
       <div
         className="nb-breathe absolute inset-[8%] rounded-full blur-3xl"
@@ -101,11 +101,13 @@ export default function EnergyCore({ on, total, live }: { on: number; total: num
         </motion.span>
         <span className="nb-mono mt-0.5 text-[10px] uppercase text-cyan-100/80">of {total} active</span>
       </div>
-      {/* Link state */}
+      {/* Link state (optional: the orbit leaves it to the HUD) */}
+      {live !== undefined && (
       <div className="nb-mono absolute -bottom-1 left-1/2 flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full border border-white/10 bg-black/40 px-3 py-1 text-[10px] uppercase text-slate-300 backdrop-blur">
         <span className={`h-1.5 w-1.5 rounded-full ${live ? "nb-blink bg-emerald-400 shadow-[0_0_8px_#34d399]" : "bg-amber-400"}`} />
         {live ? "Live link" : "Polling"}
       </div>
+      )}
     </div>
   );
 }
