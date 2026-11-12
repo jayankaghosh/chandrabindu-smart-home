@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronLeft, Home as HomeIcon, LogOut, Settings as SettingsIcon, Loader2, CloudDownload } from "lucide-react";
 import { useHomeData } from "../useHomeData";
-import { countsAsOn } from "@/lib/onCount";
 import ThemeToggle from "../ThemeToggle";
 import SleekModeFab from "./SleekModeFab";
 import SleekGoodnight from "./SleekGoodnight";
@@ -31,44 +30,9 @@ import SuperProtectedGate from "../SuperProtectedGate";
 import SleekMasterControl from "./SleekMasterControl";
 import SleekScreensaver from "./SleekScreensaver";
 import { screenTransition, screenVariants } from "./motion";
-
-type Screen =
-  | { k: "home" }
-  | { k: "favourites" }
-  | { k: "rooms" }
-  | { k: "room"; roomId: string }
-  | { k: "routines" }
-  | { k: "automations" }
-  | { k: "shortcuts" }
-  | { k: "switchGroups" }
-  | { k: "usage" }
-  | { k: "screensaver" }
-  | { k: "insights" }
-  | { k: "voice" };
+import { greeting, houseStats, loadNav, roomPills, saveNav, screenTitle, type Screen } from "./nav";
 
 const NAV_KEY = "sleek-nav";
-const SCREEN_KINDS = ["home", "favourites", "rooms", "room", "routines", "automations", "shortcuts", "switchGroups", "usage", "screensaver", "insights", "voice"];
-
-// Restore the last-viewed navigation stack (so a refresh lands where you were).
-function loadNav(): Screen[] {
-  try {
-    const arr = JSON.parse(localStorage.getItem(NAV_KEY) || "");
-    if (!Array.isArray(arr) || arr.length === 0) return [{ k: "home" }];
-    const valid = arr.filter(
-      (s: any) => s && SCREEN_KINDS.includes(s.k) && (s.k !== "room" || typeof s.roomId === "string"),
-    );
-    return valid.length ? (valid as Screen[]) : [{ k: "home" }];
-  } catch {
-    return [{ k: "home" }];
-  }
-}
-
-function greeting(): string {
-  const h = new Date().getHours();
-  if (h < 12) return "Good morning";
-  if (h < 18) return "Good afternoon";
-  return "Good evening";
-}
 
 export default function SleekApp({ role, username }: { role: "admin" | "user"; username: string }) {
   const isAdmin = role === "admin";
@@ -76,19 +40,13 @@ export default function SleekApp({ role, username }: { role: "admin" | "user"; u
   const data = useHomeData();
   const { rooms, statusByDevice, favourites } = data;
 
-  const [stack, setStack] = useState<Screen[]>(loadNav);
+  const [stack, setStack] = useState<Screen[]>(() => loadNav(NAV_KEY));
   const [dir, setDir] = useState(1);
   const screen = stack[stack.length - 1];
   const atHome = screen.k === "home";
 
   // Persist the nav stack so a refresh returns to the same screen.
-  useEffect(() => {
-    try {
-      localStorage.setItem(NAV_KEY, JSON.stringify(stack));
-    } catch {
-      /* ignore */
-    }
-  }, [stack]);
+  useEffect(() => saveNav(NAV_KEY, stack), [stack]);
 
   // If a restored room no longer exists, drop that screen gracefully.
   useEffect(() => {
@@ -159,54 +117,14 @@ export default function SleekApp({ role, username }: { role: "admin" | "user"; u
   };
 
   // Home status strip figures (+ a few extras for the screensaver stats).
-  const { onCount, offline, roomCount, deviceCount, protectedCount } = useMemo(() => {
-    let on = 0;
-    let off = 0;
-    let devices = 0;
-    let prot = 0;
-    let roomsWithDevices = 0;
-    for (const room of rooms ?? []) {
-      if (room.devices.length > 0) roomsWithDevices++;
-      for (const d of room.devices) {
-        devices++;
-        if (statusByDevice[d.id]?.reachable === false) off++;
-        const vals = statusByDevice[d.id]?.values ?? {};
-        for (const f of d.functions) {
-          if (f.protected) prot++;
-          // Switches on + fans running; protected controls and panel locks never count.
-          if (countsAsOn(f, vals[f.code])) on++;
-        }
-      }
-    }
-    return { onCount: on, offline: off, roomCount: roomsWithDevices, deviceCount: devices, protectedCount: prot };
-  }, [rooms, statusByDevice]);
+  const { onCount, offline, roomCount, deviceCount, protectedCount } = useMemo(
+    () => houseStats(rooms, statusByDevice),
+    [rooms, statusByDevice],
+  );
 
   const currentRoom = screen.k === "room" ? (rooms ?? []).find((r) => r.id === screen.roomId) : undefined;
 
-  const title =
-    screen.k === "home"
-      ? data.houseName
-      : screen.k === "rooms"
-        ? "Rooms"
-        : screen.k === "room"
-          ? currentRoom?.name ?? "Room"
-          : screen.k === "favourites"
-            ? "Favourites"
-            : screen.k === "routines"
-              ? "Routines"
-              : screen.k === "automations"
-                ? "Automations"
-                : screen.k === "shortcuts"
-                ? "Shortcuts"
-                : screen.k === "switchGroups"
-                ? "Switch Groups"
-                : screen.k === "usage"
-                ? "Usage"
-                : screen.k === "screensaver"
-                ? "Screensaver"
-                : screen.k === "voice"
-                  ? "Voice"
-                  : "Insights";
+  const title = screenTitle(screen, data.houseName, currentRoom?.name);
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -218,7 +136,7 @@ export default function SleekApp({ role, username }: { role: "admin" | "user"; u
     "flex h-12 w-12 items-center justify-center rounded-2xl border border-white/60 bg-white/50 text-slate-700 shadow-sm backdrop-blur-xl transition active:scale-95 dark:border-white/10 dark:bg-white/[0.06] dark:text-slate-200";
 
   return (
-    <div className="min-h-screen overflow-x-hidden">
+    <div className="min-h-screen overflow-x-clip">
       {/* Header */}
       <header className="sticky top-0 z-20 border-b border-white/40 bg-white/40 backdrop-blur-2xl dark:border-white/10 dark:bg-white/[0.04]">
         <div className="mx-auto flex w-full max-w-[1400px] items-center justify-between gap-3 px-4 py-3.5 sm:px-6">
@@ -275,15 +193,7 @@ export default function SleekApp({ role, username }: { role: "admin" | "user"; u
       {/* Room switcher — jump between rooms without going back to the list. */}
       {screen.k === "room" && (
         <SleekRoomSwitcher
-          rooms={(rooms ?? []).map((r) => {
-            let on = 0;
-            for (const d of r.devices) {
-              const vals = statusByDevice[d.id]?.values ?? {};
-              // Switches on + fans running, excluding protected ones (kept-on, not user toggles).
-              for (const f of d.functions) if (countsAsOn(f, vals[f.code])) on++;
-            }
-            return { id: r.id, name: r.name, locked: r.locked, on };
-          })}
+          rooms={roomPills(rooms, statusByDevice)}
           activeId={screen.roomId}
           onSwitch={switchRoom}
         />

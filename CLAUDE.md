@@ -467,15 +467,17 @@ real time when the gateway is up.
 
 ---
 
-## 9. Themes — Classic vs Sleek
+## 9. Themes — Classic, Sleek and Nebula
 
-Two full UIs, per-device selectable in Settings (Appearance). Persisted in
-`localStorage` per browser, **not** server-side.
+Three UIs, per-device selectable in Settings (Appearance, `ThemeSelect.tsx`).
+Persisted in `localStorage["ui-theme"]` per browser, **not** server-side.
 
 - **`components/uiTheme.ts` `readUiTheme()` defaults to `"sleek"`** — Classic
-  only if explicitly chosen. `app/layout.tsx` inline script stamps
-  `document.documentElement.dataset.ui`. `HomeRoot.tsx` branches:
-  `sleek` → `SleekApp`, `classic` → `Dashboard`.
+  or Nebula only if explicitly chosen. `app/layout.tsx` inline script stamps
+  `document.documentElement.dataset.ui` (and forces `.dark` for Nebula).
+  `HomeRoot.tsx` branches: `sleek` → `SleekApp`, `classic` → `Dashboard`,
+  `nebula` → `NebulaApp`, loaded with `next/dynamic` so its chunk is only
+  fetched on devices that picked it.
 - **Classic** (`Dashboard.tsx`, `RoomCard.tsx`, `ControlTile.tsx`, …): the
   original tabbed dashboard.
 - **Sleek** (`components/sleek/`): guided, POS-style, big-button, touch-first,
@@ -529,6 +531,32 @@ Two full UIs, per-device selectable in Settings (Appearance). Persisted in
 - **Bluetooth devices:** `lib/store.ts` sets `UiDevice.bluetooth` when the cloud
   name matches `/\b(ble|bluetooth)\b/i`. Both themes show "This is a BT device,
   cannot control from here" instead of controls (can't reach BLE over the LAN).
+- **Nebula** (`components/nebula/`): the animated showcase theme, always dark.
+  **Same features and rules as Sleek, by reuse, not copies:** `NebulaApp`
+  renders Sleek's feature screens (routines, automations, shortcuts, switch
+  groups, usage, screensaver settings, voice, insights, room detail incl. Edit
+  Mode sheets, favourites), Goodnight, screensaver, Assistant, Mode FAB and every
+  safety overlay (ProtectedAlert, LockedOverlay, SuperProtectedGate). Shared
+  shell logic lives in `components/sleek/nav.ts` (screen stack, titles,
+  `houseStats`, `roomPills`; Nebula persists its stack to `nebula-nav`) and
+  `sleek/masterApi.ts` (`runMaster`). `SleekRoomDetail` / `SleekFavourites`
+  take a `Tile` prop (`ControlTileProps` from `SleekControlTile`); Nebula passes
+  `NebulaControlTile`, which keeps the protected confirm, super-protected lock,
+  favourite star and group badge. Nebula's own pieces: `NebulaBackground`
+  (WebGL fbm nebula + stars shader; reacts to `energy` = share of switches on,
+  the pointer, `fx.ts` pulses (a coloured shockwave from a toggled tile) and
+  warps (navigation surge); half resolution with adaptive scaling, paused when
+  hidden, one still frame under reduced motion, CSS sky fallback without
+  WebGL), `NebulaBoot` (once per tab session, z-[85], below lock/gate),
+  `EnergyCore` (home reactor ring), `HoloCard` (3D tilt + spotlight + running
+  border), `ScrambleText`, `CursorAura` (mouse only), `NebulaMasterControl`.
+  `fx.ts` also synthesises UI sound with WebAudio (header mute button,
+  `localStorage["nebula-sound"]`) and haptics. Styling is in `app/globals.css`
+  under `html[data-ui="nebula"]`, which also re-skins the shared `.card`,
+  `.btn-*`, `.field`, `.tile-off` so reused Sleek screens (and /settings) look
+  native. framer runs under `MotionConfig reducedMotion="user"`.
+  Keep new Sleek features reachable from Nebula: add the screen to `nav.ts` and
+  render it in both shells.
 - **Backgrounds** (`app/globals.css`, `body::before`): theme-specific,
   `html[data-ui="classic"]` → `/background/classic.jpg`, `sleek` →
   `/background/sleek.jpg`, both falling back to `/background.jpg` (a missing
@@ -680,3 +708,13 @@ Verify with the Browser MCP preview tools, not by asking the user to check.
   A clean build with no dev server passes.
 - **After changing app code, redeploy the app on the hub** for changes to take
   effect there.
+- **Sticky headers need `overflow-x-clip`, not `overflow-x-hidden`, on their
+  ancestors.** `hidden` makes the wrapper a scroll container, so `sticky`
+  silently stops working (both theme shells use `clip` for this reason).
+- **Never give `<html>` a background.** The body background must propagate to
+  the page canvas; otherwise it paints over `z-index:-1/-2` layers (the
+  `body::before` photo, Nebula's WebGL sky).
+- **Effects must survive React's dev double-mount** (mount, cleanup, mount).
+  Don't set a "done once" flag and keep its timers in the same effect, and
+  don't call `WEBGL_lose_context` in cleanup: the canvas hands the dead context
+  back on remount.

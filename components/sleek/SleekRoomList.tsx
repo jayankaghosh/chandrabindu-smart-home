@@ -11,7 +11,7 @@ import { countsAsOn } from "@/lib/onCount";
 import NavTile from "./NavTile";
 import { gridContainer } from "./motion";
 
-function roomIcon(name: string): LucideIcon {
+export function roomIcon(name: string): LucideIcon {
   const s = name.toLowerCase();
   if (/bed|bedroom|\bbr\b|mbr|gbr|fbr/.test(s)) return BedDouble;
   if (/living|lounge|drawing|hall|sofa/.test(s)) return Sofa;
@@ -25,7 +25,7 @@ function roomIcon(name: string): LucideIcon {
   return DoorOpen;
 }
 
-function roomOnCount(room: Room, statusByDevice: Record<string, DeviceStatusState>): number {
+export function roomOnCount(room: Room, statusByDevice: Record<string, DeviceStatusState>): number {
   let n = 0;
   for (const d of room.devices) {
     const vals = statusByDevice[d.id]?.values ?? {};
