@@ -1,12 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { LayoutDashboard, Sparkles, Check } from "lucide-react";
+import { LayoutDashboard, Sparkles, Orbit, Check } from "lucide-react";
 import { readUiTheme, setUiTheme, type UiTheme } from "./uiTheme";
 
 const OPTIONS: { key: UiTheme; title: string; desc: string; icon: any }[] = [
   { key: "classic", title: "Classic", desc: "The full dashboard — dense, with tabs and cards. Best on a computer.", icon: LayoutDashboard },
   { key: "sleek", title: "Sleek", desc: "Big, guided, touch-first buttons. Best for phones, tablets and wall panels.", icon: Sparkles },
+  {
+    key: "nebula",
+    title: "Nebula",
+    desc: "The showcase: a live WebGL nebula, holographic tiles, motion and sound. Always dark, and heavier on the device.",
+    icon: Orbit,
+  },
 ];
 
 export default function ThemeSelect() {
@@ -25,7 +31,7 @@ export default function ThemeSelect() {
       <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
         Choose how this device shows the app. Saved per device, so a wall tablet can use Sleek while your laptop stays Classic.
       </p>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         {OPTIONS.map((o) => {
           const active = theme === o.key;
           return (

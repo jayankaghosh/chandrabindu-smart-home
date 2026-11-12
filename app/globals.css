@@ -198,3 +198,327 @@ input[type="range"]::-moz-range-thumb {
   display: grid;
   transition: grid-template-rows 0.32s cubic-bezier(0.16, 1, 0.3, 1);
 }
+
+/* ───────────────────────── Nebula theme ─────────────────────────
+   Everything below is scoped to html[data-ui="nebula"], so Sleek and Classic
+   are untouched. Nebula is always dark (the layout script forces .dark). The
+   WebGL sky (components/nebula/NebulaBackground.tsx) paints over this CSS sky,
+   which is the fallback without WebGL and the backdrop of /settings. The
+   overrides of the shared .card / .btn-* / .field / .tile-off classes re-skin
+   the Sleek feature screens Nebula reuses (routines, automations, usage...). */
+@property --nb-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+html[data-ui="nebula"] {
+  --nb-cyan: 34 211 238;
+  --nb-violet: 168 85 247;
+  --nb-pink: 236 72 153;
+  --range-fill: rgb(34 211 238);
+  --range-track: rgba(148, 163, 255, 0.16);
+  /* No background here: html must stay transparent so the body background
+     propagates to the canvas; otherwise it paints over the negative-z sky. */
+}
+html[data-ui="nebula"] body {
+  background-color: #02030a;
+  color: #e6e9ff;
+  font-family:
+    "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+}
+html[data-ui="nebula"] body::before {
+  inset: 0;
+  filter: none;
+  transform: none;
+  background-image:
+    radial-gradient(60% 50% at 20% 25%, rgba(124, 58, 237, 0.35), transparent 70%),
+    radial-gradient(50% 45% at 80% 30%, rgba(6, 182, 212, 0.25), transparent 70%),
+    radial-gradient(55% 50% at 60% 85%, rgba(236, 72, 153, 0.22), transparent 70%),
+    linear-gradient(180deg, #03040d, #02030a);
+}
+html[data-ui="nebula"] body::after {
+  background:
+    radial-gradient(120% 90% at 50% 0%, transparent 55%, rgba(2, 3, 10, 0.55)),
+    repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.012) 0 1px, transparent 1px 3px);
+}
+html[data-ui="nebula"] ::selection {
+  background: rgba(34, 211, 238, 0.35);
+  color: #fff;
+}
+
+/* Shared surfaces, re-skinned as dark holographic glass. */
+html[data-ui="nebula"] .card {
+  border-color: rgba(148, 163, 255, 0.14);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.01)),
+    rgba(8, 10, 28, 0.55);
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.07) inset,
+    0 0 0 1px rgba(99, 102, 241, 0.05),
+    0 24px 60px -28px rgba(0, 0, 0, 0.9);
+  -webkit-backdrop-filter: blur(20px) saturate(170%);
+  backdrop-filter: blur(20px) saturate(170%);
+}
+html[data-ui="nebula"] .tile-off {
+  border-color: rgba(148, 163, 255, 0.12);
+  background: rgba(10, 12, 32, 0.5);
+  color: #e6e9ff;
+}
+html[data-ui="nebula"] .field {
+  border-color: rgba(148, 163, 255, 0.16);
+  background: rgba(6, 8, 24, 0.6);
+  color: #eef1ff;
+}
+html[data-ui="nebula"] .field:focus {
+  border-color: rgb(var(--nb-cyan));
+  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.18), 0 0 24px -6px rgba(34, 211, 238, 0.6);
+}
+html[data-ui="nebula"] .icon-btn,
+html[data-ui="nebula"] .btn-ghost {
+  border-color: rgba(148, 163, 255, 0.16);
+  background: rgba(10, 12, 32, 0.55);
+  color: #dfe4ff;
+}
+html[data-ui="nebula"] .icon-btn:hover,
+html[data-ui="nebula"] .btn-ghost:hover {
+  border-color: rgba(34, 211, 238, 0.5);
+  background: rgba(20, 24, 60, 0.7);
+  box-shadow: 0 0 22px -6px rgba(34, 211, 238, 0.55);
+  color: #fff;
+}
+html[data-ui="nebula"] .btn-primary {
+  color: #fff;
+  background-image: linear-gradient(110deg, rgb(var(--nb-cyan)), rgb(var(--nb-violet)) 50%, rgb(var(--nb-pink)));
+  background-size: 200% 100%;
+  background-position: 0% 0;
+  box-shadow: 0 10px 32px -10px rgba(168, 85, 247, 0.85), 0 0 0 1px rgba(255, 255, 255, 0.12) inset;
+  transition: background-position 0.6s cubic-bezier(0.16, 1, 0.3, 1), transform 0.15s, filter 0.2s;
+}
+html[data-ui="nebula"] .btn-primary:hover {
+  background-position: 100% 0;
+  background-color: transparent;
+  filter: brightness(1.12);
+}
+html[data-ui="nebula"] input[type="range"] {
+  background: linear-gradient(90deg, rgba(34, 211, 238, 0.5), rgba(168, 85, 247, 0.5));
+  height: 6px;
+}
+html[data-ui="nebula"] input[type="range"]::-webkit-slider-thumb {
+  background: #fff;
+  border: 0;
+  box-shadow: 0 0 0 4px rgba(34, 211, 238, 0.25), 0 0 18px rgba(34, 211, 238, 0.9);
+}
+html[data-ui="nebula"] input[type="range"]::-moz-range-thumb {
+  background: #fff;
+  border: 0;
+  box-shadow: 0 0 0 4px rgba(34, 211, 238, 0.25), 0 0 18px rgba(34, 211, 238, 0.9);
+}
+html[data-ui="nebula"] ::-webkit-scrollbar-thumb {
+  background: linear-gradient(rgba(34, 211, 238, 0.35), rgba(168, 85, 247, 0.35));
+  background-clip: content-box;
+}
+
+/* Animated light running round a border (holo cards, lit tiles). Set
+   --nb-hue to an "r g b" triplet to colour it. */
+.nb-border {
+  position: relative;
+  isolation: isolate;
+}
+.nb-border::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  padding: 1px;
+  border-radius: inherit;
+  background: conic-gradient(
+    from var(--nb-angle),
+    transparent 0deg,
+    rgb(var(--nb-hue, var(--nb-cyan)) / 0.95) 50deg,
+    transparent 110deg,
+    transparent 180deg,
+    rgb(var(--nb-hue, var(--nb-cyan)) / 0.55) 230deg,
+    transparent 290deg
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: nb-spin 4.5s linear infinite;
+  pointer-events: none;
+}
+.nb-border-idle::before {
+  opacity: 0.35;
+  animation-duration: 9s;
+}
+.nb-border-idle:hover::before,
+.nb-border-idle:focus-visible::before {
+  opacity: 1;
+  animation-duration: 3s;
+}
+@keyframes nb-spin {
+  to {
+    --nb-angle: 360deg;
+  }
+}
+
+/* Cursor-tracked spotlight: set --mx / --my (px) on the element. */
+.nb-spot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    260px circle at var(--mx, 50%) var(--my, 50%),
+    rgb(var(--nb-hue, var(--nb-cyan)) / 0.16),
+    transparent 60%
+  );
+  opacity: var(--spot, 0);
+  transition: opacity 0.3s;
+  pointer-events: none;
+}
+
+/* Flowing gradient text. */
+.nb-gradient-text {
+  background-image: linear-gradient(
+    100deg,
+    #e0f2fe 0%,
+    rgb(var(--nb-cyan)) 25%,
+    rgb(var(--nb-violet)) 50%,
+    rgb(var(--nb-pink)) 75%,
+    #e0f2fe 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: nb-flow 8s linear infinite;
+}
+@keyframes nb-flow {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* Holographic shimmer sweep. */
+.nb-sheen {
+  background: linear-gradient(
+    115deg,
+    transparent 35%,
+    rgba(255, 255, 255, 0.16) 48%,
+    rgba(34, 211, 238, 0.12) 52%,
+    transparent 65%
+  );
+  background-size: 250% 100%;
+  animation: nb-sheen 5.5s ease-in-out infinite;
+}
+@keyframes nb-sheen {
+  0% {
+    background-position: 130% 0;
+  }
+  60%,
+  100% {
+    background-position: -130% 0;
+  }
+}
+
+.nb-spin-slow {
+  animation: nb-rotate 28s linear infinite;
+}
+.nb-spin-rev {
+  animation: nb-rotate 18s linear infinite reverse;
+}
+.nb-fan-spin {
+  animation: nb-rotate var(--nb-fan, 1.2s) linear infinite;
+}
+@keyframes nb-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.nb-breathe {
+  animation: nb-breathe 3.2s ease-in-out infinite;
+}
+@keyframes nb-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1.06);
+    opacity: 1;
+  }
+}
+.nb-scan {
+  animation: nb-scan 3.6s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+@keyframes nb-scan {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+.nb-scan-y {
+  animation: nb-scan-y 2.8s linear infinite;
+}
+@keyframes nb-scan-y {
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(100%);
+  }
+}
+.nb-blink {
+  animation: nb-blink 1.6s ease-in-out infinite;
+}
+@keyframes nb-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+.nb-mono {
+  font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+}
+
+/* Nebula range slider (dimmers): a glowing fill driven by --nb-fill (0-100). */
+.nb-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 10px;
+  border-radius: 9999px;
+  background:
+    linear-gradient(90deg, rgb(var(--nb-hue)) 0 calc(var(--nb-fill, 0) * 1%), transparent 0),
+    rgba(148, 163, 255, 0.14) !important;
+  box-shadow: 0 0 18px -4px rgb(var(--nb-hue) / calc(var(--nb-fill, 0) / 100));
+}
+.nb-range::-webkit-slider-thumb {
+  width: 26px !important;
+  height: 26px !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nb-border::before,
+  .nb-gradient-text,
+  .nb-sheen,
+  .nb-spin-slow,
+  .nb-spin-rev,
+  .nb-fan-spin,
+  .nb-breathe,
+  .nb-scan,
+  .nb-scan-y,
+  .nb-blink {
+    animation: none !important;
+  }
+}

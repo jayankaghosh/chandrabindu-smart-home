@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Power, PowerOff, Zap, X, Loader2 } from "lucide-react";
+import { runMaster } from "./masterApi";
 
 // A persistent floating control (bottom-left, opposite the Assistant) that turns
 // every switch on or off at once. Both actions confirm first; master-off leaves
@@ -18,14 +19,7 @@ export default function SleekMasterControl({ onDone, raised = false }: { onDone:
     setBusy(true);
     setResult(null);
     try {
-      const res = await fetch("/api/master", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ on }),
-      });
-      const d = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(d.error || "Failed");
-      setResult(`${on ? "Turned on" : "Turned off"} ${d.ok} switch${d.ok === 1 ? "" : "es"}${d.skippedProtected ? ` · ${d.skippedProtected} protected kept` : ""}`);
+      setResult(await runMaster(on));
       onDone();
     } catch (e) {
       setResult((e as Error).message);
